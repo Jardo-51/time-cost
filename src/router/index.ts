@@ -8,8 +8,20 @@ const router = createRouter({
       component: () => import('@/pages/HomePage.vue'),
     },
     {
+      path: '/stats',
+      component: () => import('@/pages/StatsPage.vue'),
+    },
+    {
       path: '/settings',
       component: () => import('@/pages/SettingsPage.vue'),
+    },
+    {
+      path: '/settings/categories',
+      component: () => import('@/pages/CategoriesPage.vue'),
+    },
+    {
+      path: '/settings/templates',
+      component: () => import('@/pages/TemplatesPage.vue'),
     },
   ],
 })

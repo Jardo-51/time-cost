@@ -1,0 +1,165 @@
+// End-to-end test of the sync engine against a real Etebase server.
+// Requires a local server (see README):
+//   docker run -d -p 3735:3735 -e ALLOWED_HOSTS=localhost,127.0.0.1 victorrds/etesync:alpine
+// The suite self-skips when no server is reachable, so `pnpm test` stays
+// green without Docker. fake-indexeddb is installed via vitest setupFiles.
+import * as Etebase from 'etebase'
+import { createPinia, setActivePinia } from 'pinia'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { db } from '@/db'
+import { seedDefaults } from '@/db/seed'
+import { syncOnce } from '@/services/sync/engine'
+import * as account from '@/services/sync/etebase'
+import { useExpensesStore } from '@/stores/expenses'
+
+const SERVER = process.env.ETEBASE_URL ?? 'http://localhost:3735'
+
+async function serverAvailable (): Promise<boolean> {
+  try {
+    await Etebase.ready
+    return await Etebase.Account.isEtebaseServer(SERVER)
+  } catch {
+    return false
+  }
+}
+
+const available = await serverAvailable()
+
+// Wipes all local state to simulate a brand-new device on the same account.
+async function freshDevice (username: string, password: string): Promise<void> {
+  await account.logout()
+  await db.delete()
+  await db.open()
+  setActivePinia(createPinia())
+  await seedDefaults()
+  await account.login(SERVER, username, password)
+}
+
+describe.skipIf(!available)('etebase sync engine (e2e against local server)', () => {
+  // Open signup is disabled on etebase-server by default; the Etebase signup
+  // handshake still works for a pre-created Django user (the container's
+  // SUPER_USER), and it is a no-op error on repeat runs.
+  const username = process.env.ETEBASE_TEST_USER ?? 'admin'
+  const password = process.env.ETEBASE_TEST_PASSWORD ?? 'test-password-123'
+
+  beforeAll(async () => {
+    await Etebase.ready
+    try {
+      const signup = await Etebase.Account.signup(
+        { username, email: `${username}@example.com` },
+        password,
+        SERVER,
+      )
+      await signup.logout()
+    } catch {
+      // Already signed up on a previous run.
+    }
+    setActivePinia(createPinia())
+    await seedDefaults()
+    await account.login(SERVER, username, password)
+  }, 60_000)
+
+  afterAll(async () => {
+    try {
+      await account.logout()
+    } catch {
+      // Server may already be gone; local cleanup happened regardless.
+    }
+  })
+
+  it('round-trips records between devices', async () => {
+    const expenses = useExpensesStore()
+    await expenses.hydrate()
+    const created = await expenses.add({
+      amount: 40,
+      currency: 'EUR',
+      description: 'Test coffee',
+      categoryId: 'default-food',
+      date: '2026-07-05',
+    })
+    await syncOnce()
+
+    await freshDevice(username, password)
+    await syncOnce()
+
+    const pulled = await db.expenses.get(created.id)
+    expect(pulled).toBeDefined()
+    expect(pulled!.description).toBe('Test coffee')
+    expect(pulled!.deleted).toBe(false)
+    expect(pulled!.amount).toBe(40)
+
+    // Deterministically-seeded categories merge instead of duplicating.
+    const categories = (await db.categories.toArray()).filter(c => !c.deleted)
+    expect(categories).toHaveLength(7)
+  }, 120_000)
+
+  it('does not resurrect deleted records on a fresh device', async () => {
+    const expenses = useExpensesStore()
+    await expenses.hydrate()
+    const target = expenses.expenses.find(e => e.description === 'Test coffee')
+    expect(target).toBeDefined()
+    await expenses.remove(target!.id)
+    await syncOnce()
+
+    await freshDevice(username, password)
+    await syncOnce()
+
+    // A fresh device either never materializes the record or holds a tombstone.
+    const gone = await db.expenses.get(target!.id)
+    expect(gone === undefined || gone.deleted).toBe(true)
+    const store = useExpensesStore()
+    await store.hydrate()
+    expect(store.expenses.some(e => e.id === target!.id)).toBe(false)
+  }, 120_000)
+
+  it('tombstones a local record when a remote deletion arrives', async () => {
+    const expenses = useExpensesStore()
+    await expenses.hydrate()
+    const created = await expenses.add({
+      amount: 5,
+      currency: 'EUR',
+      description: 'Doomed',
+      categoryId: 'default-other',
+      date: '2026-07-02',
+    })
+    await syncOnce()
+
+    // Simulate another device deleting the item directly through the SDK.
+    const collection = await account.getCollection()
+    const itemManager = account.getItemManager(collection)
+    const mapping = await db.syncItems.get(created.id)
+    expect(mapping?.cachedItem).toBeTruthy()
+    const item = itemManager.cacheLoad(mapping!.cachedItem!)
+    item.delete(true)
+    await itemManager.batch([item])
+
+    await syncOnce()
+    const local = await db.expenses.get(created.id)
+    expect(local?.deleted).toBe(true)
+  }, 120_000)
+
+  it('pushes edits of previously pulled items (revision update path)', async () => {
+    const expenses = useExpensesStore()
+    await expenses.hydrate()
+    const created = await expenses.add({
+      amount: 10,
+      currency: 'EUR',
+      description: 'LWW v1',
+      categoryId: 'default-other',
+      date: '2026-07-01',
+    })
+    await syncOnce()
+
+    await freshDevice(username, password)
+    await syncOnce()
+    const deviceB = useExpensesStore()
+    await deviceB.hydrate()
+    await deviceB.update(created.id, { description: 'LWW v2' })
+    await syncOnce()
+
+    await freshDevice(username, password)
+    await syncOnce()
+    const final = await db.expenses.get(created.id)
+    expect(final?.description).toBe('LWW v2')
+  }, 120_000)
+})

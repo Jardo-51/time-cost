@@ -6,7 +6,7 @@
 
 // Composables
 import { createApp } from 'vue'
-
+import { bootstrap } from '@/bootstrap'
 // Plugins
 import { registerPlugins } from '@/plugins'
 
@@ -20,4 +20,6 @@ const app = createApp(App)
 
 registerPlugins(app)
 
-app.mount('#app')
+// Local data must be hydrated before first render; network work inside
+// bootstrap is fire-and-forget.
+bootstrap().finally(() => app.mount('#app'))

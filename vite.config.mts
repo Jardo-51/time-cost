@@ -31,6 +31,23 @@ export default defineConfig({
       registerType: 'autoUpdate',
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+        // Only the FX API gets a runtime cache. Never add a catch-all rule
+        // here: Etebase sync requests (user-configured host) must pass
+        // through to the network uncached.
+        runtimeCaching: [
+          {
+            urlPattern: /^https:\/\/api\.frankfurter\.dev\/v1\//,
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'fx-api',
+              networkTimeoutSeconds: 5,
+              expiration: {
+                maxEntries: 8,
+                maxAgeSeconds: 7 * 24 * 3600,
+              },
+            },
+          },
+        ],
       },
       manifest: {
         name: 'Time Cost',
