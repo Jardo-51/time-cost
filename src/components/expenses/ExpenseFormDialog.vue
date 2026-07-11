@@ -54,6 +54,25 @@
           </template>
         </v-select>
 
+        <v-combobox
+          v-model="tagNames"
+          chips
+          closable-chips
+          hint="Type to create a new tag"
+          :items="tagsStore.sorted.map(t => t.name)"
+          label="Tags"
+          multiple
+        >
+          <template #chip="{ props: chipProps, item }">
+            <v-chip
+              v-bind="chipProps"
+              :color="tagsStore.byName(item)?.color"
+              size="small"
+              variant="tonal"
+            />
+          </template>
+        </v-combobox>
+
         <v-text-field v-model="date" label="Date" type="date" />
 
         <v-alert
@@ -95,6 +114,7 @@
   import { useExpensesStore } from '@/stores/expenses'
   import { useFxStore } from '@/stores/fx'
   import { useSettingsStore } from '@/stores/settings'
+  import { useTagsStore } from '@/stores/tags'
   import { todayISO } from '@/utils/date'
   import { formatMoney } from '@/utils/money'
 
@@ -112,12 +132,14 @@
   const expensesStore = useExpensesStore()
   const settings = useSettingsStore()
   const fx = useFxStore()
+  const tagsStore = useTagsStore()
   const { worktimePreview } = useWorktime()
 
   const amount = ref('')
   const currency = ref('EUR')
   const description = ref('')
   const categoryId = ref(OTHER_CATEGORY_ID)
+  const tagNames = ref<string[]>([])
   const date = ref(todayISO())
 
   watch(isOpen, open => {
@@ -127,12 +149,16 @@
       currency.value = props.expense.currency
       description.value = props.expense.description
       categoryId.value = props.expense.categoryId
+      tagNames.value = props.expense.tagIds
+        .map(id => tagsStore.byId(id)?.name)
+        .filter((name): name is string => !!name)
       date.value = props.expense.date
     } else {
       amount.value = ''
       currency.value = localStorage.getItem('lastCurrency') ?? settings.baseCurrency
       description.value = ''
       categoryId.value = OTHER_CATEGORY_ID
+      tagNames.value = []
       date.value = todayISO()
     }
   })
@@ -172,6 +198,7 @@
       currency: currency.value,
       description: description.value.trim(),
       categoryId: categoryId.value,
+      tagIds: await tagsStore.ensureIds(tagNames.value),
       date: date.value,
     }
     await (props.expense

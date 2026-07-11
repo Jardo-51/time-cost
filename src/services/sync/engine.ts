@@ -7,6 +7,7 @@ import { useCategoriesStore } from '@/stores/categories'
 import { useExpensesStore } from '@/stores/expenses'
 import { useFxStore } from '@/stores/fx'
 import { useSettingsStore } from '@/stores/settings'
+import { useTagsStore } from '@/stores/tags'
 import { useTemplatesStore } from '@/stores/templates'
 
 // One Etebase collection, one encrypted item per record. Item content is
@@ -17,7 +18,7 @@ const STOKEN_KEY = 'etebase.stoken'
 const BATCH_SIZE = 50
 const TOMBSTONE_TTL_MS = 90 * 24 * 3600 * 1000
 
-type SyncEntity = 'expense' | 'category' | 'template' | 'incomePeriod' | 'customRate' | 'settings'
+type SyncEntity = 'expense' | 'category' | 'tag' | 'template' | 'incomePeriod' | 'customRate' | 'settings'
 
 type SyncRecord = SyncFields & Record<string, unknown>
 
@@ -29,6 +30,7 @@ interface ItemPayload {
 const TABLE_ENTITIES: Array<{ entity: SyncEntity, table: Table<SyncRecord, string> }> = [
   { entity: 'expense', table: db.expenses as unknown as Table<SyncRecord, string> },
   { entity: 'category', table: db.categories as unknown as Table<SyncRecord, string> },
+  { entity: 'tag', table: db.tags as unknown as Table<SyncRecord, string> },
   { entity: 'template', table: db.templates as unknown as Table<SyncRecord, string> },
   { entity: 'incomePeriod', table: db.incomePeriods as unknown as Table<SyncRecord, string> },
   { entity: 'customRate', table: db.customRates as unknown as Table<SyncRecord, string> },
@@ -192,6 +194,9 @@ async function rehydrate (touched: Set<SyncEntity>): Promise<void> {
   }
   if (touched.has('category')) {
     jobs.push(useCategoriesStore().hydrate())
+  }
+  if (touched.has('tag')) {
+    jobs.push(useTagsStore().hydrate())
   }
   if (touched.has('template')) {
     jobs.push(useTemplatesStore().hydrate())

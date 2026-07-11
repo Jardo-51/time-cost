@@ -20,6 +20,13 @@
         />
 
         <v-list-item
+          prepend-icon="mdi-tag-multiple"
+          subtitle="Labels that cut across categories, for filtering stats"
+          title="Tags"
+          to="/settings/tags"
+        />
+
+        <v-list-item
           prepend-icon="mdi-flash"
           subtitle="One-tap expenses like coffee or a bus ticket"
           title="Quick-add templates"

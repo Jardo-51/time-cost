@@ -11,6 +11,7 @@ export interface ExpenseInput {
   currency: string
   description: string
   categoryId: string
+  tagIds?: string[]
   date: string
 }
 
@@ -22,7 +23,12 @@ export const useExpensesStore = defineStore('expenses', () => {
   const expenses = ref<Expense[]>([])
 
   async function hydrate (): Promise<void> {
-    expenses.value = sortExpenses((await db.expenses.toArray()).filter(e => !e.deleted))
+    // Records synced in from a pre-tags build have no tagIds field.
+    expenses.value = sortExpenses(
+      (await db.expenses.toArray())
+        .filter(e => !e.deleted)
+        .map(e => ({ ...e, tagIds: e.tagIds ?? [] })),
+    )
   }
 
   function snapshotBase (amount: number, currency: string): Pick<Expense, 'baseAmount' | 'baseCurrency'> {
@@ -37,6 +43,7 @@ export const useExpensesStore = defineStore('expenses', () => {
     const expense: Expense = {
       ...input,
       ...snapshotBase(input.amount, input.currency),
+      tagIds: input.tagIds ?? [],
       id: crypto.randomUUID(),
       createdAt: now,
       modifiedAt: now,

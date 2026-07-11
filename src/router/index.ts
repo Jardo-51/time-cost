@@ -20,6 +20,10 @@ const router = createRouter({
       component: () => import('@/pages/CategoriesPage.vue'),
     },
     {
+      path: '/settings/tags',
+      component: () => import('@/pages/TagsPage.vue'),
+    },
+    {
       path: '/settings/templates',
       component: () => import('@/pages/TemplatesPage.vue'),
     },

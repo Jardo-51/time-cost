@@ -4,6 +4,7 @@ import { useExpensesStore } from '@/stores/expenses'
 import { useFxStore } from '@/stores/fx'
 import { useSettingsStore } from '@/stores/settings'
 import { useSyncStore } from '@/stores/sync'
+import { useTagsStore } from '@/stores/tags'
 import { useTemplatesStore } from '@/stores/templates'
 
 // Runs after plugin registration and before mount: opens the database,
@@ -14,6 +15,7 @@ export async function bootstrap (): Promise<void> {
 
   const settings = useSettingsStore()
   const categories = useCategoriesStore()
+  const tags = useTagsStore()
   const expenses = useExpensesStore()
   const templates = useTemplatesStore()
   const fx = useFxStore()
@@ -22,6 +24,7 @@ export async function bootstrap (): Promise<void> {
   await Promise.all([
     settings.hydrate(),
     categories.hydrate(),
+    tags.hydrate(),
     expenses.hydrate(),
     templates.hydrate(),
     fx.hydrate(),

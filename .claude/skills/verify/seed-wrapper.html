@@ -1,0 +1,173 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>html,body{margin:0;height:100%}iframe{border:0;width:100%;height:100%}img{position:absolute;width:1px;height:1px;opacity:0}</style>
+</head>
+<body>
+<iframe id="app"></iframe>
+<img id="hang" src="http://localhost:4199/hang">
+<script>
+const sleep = ms => new Promise(r => setTimeout(r, ms))
+
+const params = new URLSearchParams(location.search)
+const target = params.get('route') || '/'
+const action = params.get('action') || ''
+
+const now = Date.now()
+const tags = [
+  { id: 't-trip', name: 'Trip to Prague', color: '#1E88E5', modifiedAt: now, deleted: false },
+  { id: 't-coffee', name: 'coffee', color: '#FB8C00', modifiedAt: now, deleted: false },
+]
+const expense = (id, date, amount, description, categoryId, tagIds) => ({
+  id, date, amount, currency: 'EUR', baseAmount: amount, baseCurrency: 'EUR',
+  description, categoryId, tagIds, createdAt: now, modifiedAt: now, deleted: false,
+})
+const expenses = [
+  expense('e1', '2026-07-10', 12.5, 'Train ticket', 'default-transport', ['t-trip']),
+  expense('e2', '2026-07-10', 4, 'Cappuccino', 'default-food', ['t-coffee']),
+  expense('e3', '2026-07-08', 89, 'Hotel', 'default-housing', ['t-trip']),
+  expense('e4', '2026-07-05', 30, 'Groceries', 'default-food', []),
+  expense('e5', '2026-06-20', 55, 'Museum + dinner', 'default-entertainment', ['t-trip']),
+]
+const income = {
+  id: 'inc1', effectiveFrom: '2026-01-01', amount: 20, unit: 'hour',
+  hoursPerDay: 8, daysPerWeek: 5, modifiedAt: now, deleted: false,
+}
+
+function seed () {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open('time-cost')
+    req.onerror = () => reject(req.error)
+    req.onsuccess = () => {
+      const db = req.result
+      const tx = db.transaction(['tags', 'expenses', 'incomePeriods'], 'readwrite')
+      for (const t of tags) tx.objectStore('tags').put(t)
+      for (const e of expenses) tx.objectStore('expenses').put(e)
+      tx.objectStore('incomePeriods').put(income)
+      tx.oncomplete = () => { db.close(); resolve() }
+      tx.onerror = () => reject(tx.error)
+    }
+  })
+}
+
+const iframe = document.getElementById('app')
+const doc = () => iframe.contentDocument
+
+function banner (msg) {
+  let el = document.getElementById('banner')
+  if (!el) {
+    el = document.createElement('div')
+    el.id = 'banner'
+    el.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99;background:#c00;color:#fff;font:12px monospace;padding:2px'
+    document.body.append(el)
+  }
+  el.textContent = msg
+}
+
+function realClick (el) {
+  const rect = el.getBoundingClientRect()
+  const opts = {
+    bubbles: true, cancelable: true, composed: true,
+    clientX: rect.x + rect.width / 2, clientY: rect.y + rect.height / 2,
+    button: 0,
+  }
+  const win = iframe.contentWindow
+  for (const type of ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click']) {
+    el.dispatchEvent(new (type.startsWith('pointer') ? win.PointerEvent : win.MouseEvent)(type, opts))
+  }
+}
+
+// Vue transition classes are advanced by requestAnimationFrame, which never
+// ticks in headless-screenshot mode — strip them and force overlays visible.
+function forceShowOverlays () {
+  for (const el of doc().querySelectorAll('.v-overlay, .v-overlay *')) {
+    for (const c of [...el.classList]) if (c.includes('-enter')) el.classList.remove(c)
+  }
+  for (const el of doc().querySelectorAll('.v-overlay, .v-overlay__scrim, .v-overlay__content')) {
+    el.style.opacity = '1'
+    el.style.transform = 'none'
+    if (el.style.display === 'none') el.style.display = ''
+  }
+}
+
+async function clickStatsTagFilter () {
+  const field = doc().querySelector('.v-select .v-field')
+  if (!field) { banner('no select field found'); return }
+  realClick(field)
+  await sleep(1200)
+  forceShowOverlays()
+  await sleep(300)
+  const items = [...doc().querySelectorAll('.v-overlay .v-list-item')]
+  const trip = items.find(i => i.textContent.includes('Trip to Prague'))
+  if (!trip) { banner('no menu item; overlay items: ' + items.length); return }
+  realClick(trip)
+  await sleep(1500)
+  forceShowOverlays()
+}
+
+window.addEventListener('error', e => banner('ERR: ' + e.message))
+window.addEventListener('unhandledrejection', e => banner('REJ: ' + e.reason))
+
+async function run () {
+  // Phase 1: let the app create/upgrade the schema and seed defaults.
+  iframe.src = '/'
+  await new Promise(r => { iframe.onload = r })
+  await sleep(2500)
+  // Phase 2: insert fixtures, then reload the app on the target route.
+  await seed()
+  iframe.onload = null
+  iframe.src = target
+  await new Promise(r => { iframe.onload = r })
+  await sleep(2500)
+  if (action === 'edit') {
+    const item = [...doc().querySelectorAll('.v-list-item')]
+      .find(i => i.textContent.includes('Train ticket'))
+    if (!item) {
+      banner('list item not found; items: ' + doc().querySelectorAll('.v-list-item').length)
+    } else {
+      realClick(item)
+      await sleep(1500)
+      forceShowOverlays()
+      await sleep(300)
+      if (!doc().querySelector('.v-dialog')) banner('dialog did not open')
+    }
+  } else if (action === 'filter') {
+    await clickStatsTagFilter()
+  } else if (action === 'filter-year' || action === 'filter-day') {
+    const label = action === 'filter-year' ? 'Year' : 'Day'
+    const btn = [...doc().querySelectorAll('.v-btn-group .v-btn')]
+      .find(b => b.textContent.trim() === label)
+    if (!btn) { banner('no period button ' + label) } else {
+      realClick(btn)
+      await sleep(1000)
+      await clickStatsTagFilter()
+    }
+  } else if (action === 'delete-tag') {
+    const item = [...doc().querySelectorAll('.v-list-item')]
+      .find(i => i.textContent.includes('Trip to Prague'))
+    const del = item && item.querySelector('.v-btn .mdi-delete')
+    if (!del) { banner('no delete button') } else {
+      realClick(del.closest('.v-btn'))
+      await sleep(1200)
+      forceShowOverlays()
+      const confirm = [...doc().querySelectorAll('.v-overlay .v-btn')]
+        .find(b => b.textContent.trim() === 'Delete')
+      if (!confirm) { banner('no confirm button') } else {
+        realClick(confirm)
+        await sleep(1500)
+        iframe.src = '/'
+        await new Promise(r => { iframe.onload = r })
+        await sleep(2500)
+      }
+    }
+  }
+  document.getElementById('hang').removeAttribute('src')
+}
+run().catch(e => {
+  banner('RUN ERR: ' + (e && e.message || e))
+  document.getElementById('hang').removeAttribute('src')
+})
+</script>
+</body>
+</html>

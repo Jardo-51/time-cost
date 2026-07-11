@@ -7,7 +7,10 @@
     </template>
 
     <v-list-item-title>{{ expense.description || category?.name || 'Expense' }}</v-list-item-title>
-    <v-list-item-subtitle>{{ moneyFor(expense) }}</v-list-item-subtitle>
+
+    <v-list-item-subtitle>
+      {{ moneyFor(expense) }}<template v-if="tagLabel"> · <span class="text-medium-emphasis">{{ tagLabel }}</span></template>
+    </v-list-item-subtitle>
 
     <template #append>
       <div class="text-right">
@@ -24,6 +27,7 @@
   import { useWorktime } from '@/composables/useWorktime'
   import { useCategoriesStore } from '@/stores/categories'
   import { useSettingsStore } from '@/stores/settings'
+  import { useTagsStore } from '@/stores/tags'
   import { formatMoney } from '@/utils/money'
 
   const props = defineProps<{ expense: Expense }>()
@@ -32,9 +36,18 @@
 
   const categories = useCategoriesStore()
   const settings = useSettingsStore()
+  const tags = useTagsStore()
   const { worktimeFor, moneyFor, baseAmountOf } = useWorktime()
 
   const category = computed(() => categories.byId(props.expense.categoryId))
+
+  const tagLabel = computed(() =>
+    props.expense.tagIds
+      .map(id => tags.byId(id))
+      .filter(tag => !!tag)
+      .map(tag => `#${tag.name}`)
+      .join(' '),
+  )
 
   const convertedHint = computed(() => {
     if (props.expense.currency === settings.baseCurrency) return ''

@@ -6,6 +6,7 @@ import type {
   IncomePeriod,
   MetaEntry,
   SyncItemMap,
+  Tag,
 } from '@/types'
 import type { Table } from 'dexie'
 import Dexie from 'dexie'
@@ -13,6 +14,7 @@ import Dexie from 'dexie'
 export class TimeCostDB extends Dexie {
   expenses!: Table<Expense, string>
   categories!: Table<Category, string>
+  tags!: Table<Tag, string>
   templates!: Table<ExpenseTemplate, string>
   incomePeriods!: Table<IncomePeriod, string>
   customRates!: Table<CustomRate, string>
@@ -32,6 +34,14 @@ export class TimeCostDB extends Dexie {
       meta: 'key',
       syncItems: 'localId, itemUid',
     })
+    this.version(2).stores({
+      expenses: 'id, date, categoryId, modifiedAt, *tagIds',
+      tags: 'id, modifiedAt',
+    }).upgrade(tx =>
+      tx.table('expenses').toCollection().modify(expense => {
+        expense.tagIds ??= []
+      }),
+    )
   }
 }
 

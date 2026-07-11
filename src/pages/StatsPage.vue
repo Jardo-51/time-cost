@@ -4,10 +4,28 @@
 
     <PeriodPicker v-model:anchor="anchor" v-model:kind="kind" />
 
+    <v-select
+      v-if="tags.sorted.length > 0"
+      v-model="tagId"
+      clearable
+      density="comfortable"
+      item-title="name"
+      item-value="id"
+      :items="tags.sorted"
+      label="Filter by tag"
+      prepend-inner-icon="mdi-tag-outline"
+    >
+      <template #selection="{ item }">
+        <v-chip :color="item.color" size="small" variant="tonal">
+          {{ item.name }}
+        </v-chip>
+      </template>
+    </v-select>
+
     <v-empty-state
       v-if="filtered.length === 0"
       icon="mdi-chart-donut"
-      text="No expenses in this period."
+      :text="tagId ? 'No expenses with this tag in this period.' : 'No expenses in this period.'"
       title="Nothing here"
     />
 
@@ -44,19 +62,26 @@
   import { useWorktime } from '@/composables/useWorktime'
   import { useCategoriesStore } from '@/stores/categories'
   import { useExpensesStore } from '@/stores/expenses'
+  import { useTagsStore } from '@/stores/tags'
   import { periodRange } from '@/utils/date'
 
   const expenses = useExpensesStore()
   const categories = useCategoriesStore()
+  const tags = useTagsStore()
   const { baseAmountOf, workSecondsFor } = useWorktime()
 
   const kind = ref<PeriodKind>('month')
   const anchor = ref(new Date())
+  const tagId = ref<string | null>(null)
 
   const range = computed(() => periodRange(kind.value, anchor.value))
 
   const filtered = computed(() =>
-    expenses.expenses.filter(e => e.date >= range.value.start && e.date <= range.value.end),
+    expenses.expenses.filter(e =>
+      e.date >= range.value.start
+      && e.date <= range.value.end
+      && (tagId.value === null || e.tagIds.includes(tagId.value)),
+    ),
   )
 
   const totals = computed(() => {

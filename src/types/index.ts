@@ -20,6 +20,7 @@ export interface Expense extends SyncFields {
   baseCurrency: string
   description: string
   categoryId: string
+  tagIds: string[]
   date: string // 'YYYY-MM-DD', local calendar date
   createdAt: number
 }
@@ -29,6 +30,12 @@ export interface Category extends SyncFields {
   icon: string
   color: string
   isProtected?: boolean
+}
+
+// Free-form label; an expense can carry any number of tags, across categories.
+export interface Tag extends SyncFields {
+  name: string
+  color: string
 }
 
 export interface ExpenseTemplate extends SyncFields {
