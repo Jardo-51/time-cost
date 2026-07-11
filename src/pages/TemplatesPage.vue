@@ -23,7 +23,7 @@
         <v-list-item
           v-for="(template, index) in templates.sorted"
           :key="template.id"
-          :subtitle="formatMoney(template.amount, template.currency)"
+          :subtitle="subtitleFor(template)"
           :title="template.name"
         >
           <template #prepend>
@@ -82,13 +82,25 @@
   import TemplateFormDialog from '@/components/templates/TemplateFormDialog.vue'
   import { useAppStore } from '@/stores/app'
   import { useCategoriesStore } from '@/stores/categories'
+  import { useTagsStore } from '@/stores/tags'
   import { useTemplatesStore } from '@/stores/templates'
   import { formatMoney } from '@/utils/money'
 
   const router = useRouter()
   const templates = useTemplatesStore()
   const categories = useCategoriesStore()
+  const tags = useTagsStore()
   const app = useAppStore()
+
+  function subtitleFor (template: ExpenseTemplate): string {
+    const hashtags = template.tagIds
+      .map(id => tags.byId(id))
+      .filter(tag => !!tag)
+      .map(tag => `#${tag.name}`)
+      .join(' ')
+    const money = formatMoney(template.amount, template.currency)
+    return hashtags ? `${money} · ${hashtags}` : money
+  }
 
   const dialogOpen = ref(false)
   const editing = ref<ExpenseTemplate | null>(null)

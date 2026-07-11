@@ -42,6 +42,11 @@ export class TimeCostDB extends Dexie {
         expense.tagIds ??= []
       }),
     )
+    this.version(3).stores({}).upgrade(tx =>
+      tx.table('templates').toCollection().modify(template => {
+        template.tagIds ??= []
+      }),
+    )
   }
 }
 

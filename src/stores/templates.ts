@@ -16,7 +16,10 @@ export const useTemplatesStore = defineStore('templates', () => {
   )
 
   async function hydrate (): Promise<void> {
-    templates.value = (await db.templates.toArray()).filter(t => !t.deleted)
+    // Records synced in from a pre-tags build have no tagIds field.
+    templates.value = (await db.templates.toArray())
+      .filter(t => !t.deleted)
+      .map(t => ({ ...t, tagIds: t.tagIds ?? [] }))
   }
 
   async function add (input: TemplateInput): Promise<void> {
@@ -81,6 +84,7 @@ export const useTemplatesStore = defineStore('templates', () => {
       currency: template.currency,
       description: template.name,
       categoryId: template.categoryId,
+      tagIds: [...template.tagIds],
       date: todayISO(),
     })
   }

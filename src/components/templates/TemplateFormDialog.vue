@@ -57,6 +57,25 @@
             {{ item.name }}
           </template>
         </v-select>
+
+        <v-combobox
+          v-model="tagNames"
+          chips
+          closable-chips
+          hint="Applied to every expense created from this template"
+          :items="tags.sorted.map(t => t.name)"
+          label="Tags"
+          multiple
+        >
+          <template #chip="{ props: chipProps, item }">
+            <v-chip
+              v-bind="chipProps"
+              :color="tags.byName(item)?.color"
+              size="small"
+              variant="tonal"
+            />
+          </template>
+        </v-combobox>
       </v-card-text>
 
       <v-card-actions>
@@ -75,6 +94,7 @@
   import { useCategoriesStore } from '@/stores/categories'
   import { useFxStore } from '@/stores/fx'
   import { useSettingsStore } from '@/stores/settings'
+  import { useTagsStore } from '@/stores/tags'
   import { useTemplatesStore } from '@/stores/templates'
 
   const props = defineProps<{
@@ -87,11 +107,13 @@
   const categories = useCategoriesStore()
   const settings = useSettingsStore()
   const fx = useFxStore()
+  const tags = useTagsStore()
 
   const name = ref('')
   const amount = ref('')
   const currency = ref('EUR')
   const categoryId = ref(OTHER_CATEGORY_ID)
+  const tagNames = ref<string[]>([])
 
   watch(isOpen, open => {
     if (!open) return
@@ -99,6 +121,9 @@
     amount.value = props.template ? String(props.template.amount) : ''
     currency.value = props.template?.currency ?? settings.baseCurrency
     categoryId.value = props.template?.categoryId ?? OTHER_CATEGORY_ID
+    tagNames.value = (props.template?.tagIds ?? [])
+      .map(id => tags.byId(id)?.name)
+      .filter((tagName): tagName is string => !!tagName)
   })
 
   const parsedAmount = computed(() => {
@@ -115,6 +140,7 @@
       amount: parsedAmount.value,
       currency: currency.value,
       categoryId: categoryId.value,
+      tagIds: await tags.ensureIds(tagNames.value),
     }
     await (props.template
       ? templates.update(props.template.id, input)

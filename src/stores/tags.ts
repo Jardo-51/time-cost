@@ -5,6 +5,7 @@ import { CATEGORY_COLORS } from '@/constants/categories'
 import { db } from '@/db'
 import { useExpensesStore } from '@/stores/expenses'
 import { useSyncStore } from '@/stores/sync'
+import { useTemplatesStore } from '@/stores/templates'
 
 export type TagInput = Omit<Tag, keyof SyncFields>
 
@@ -73,14 +74,15 @@ export const useTagsStore = defineStore('tags', () => {
     return ids
   }
 
-  // Tombstones the tag and detaches it from every expense in one transaction.
+  // Tombstones the tag and detaches it from every expense and template in
+  // one transaction.
   async function remove (id: string): Promise<void> {
     const existing = tags.value.find(t => t.id === id)
     if (!existing) {
       return
     }
     const now = Date.now()
-    await db.transaction('rw', [db.tags, db.expenses], async () => {
+    await db.transaction('rw', [db.tags, db.expenses, db.templates], async () => {
       await db.expenses
         .where('tagIds')
         .equals(id)
@@ -89,10 +91,16 @@ export const useTagsStore = defineStore('tags', () => {
           expense.tagIds = expense.tagIds.filter(tagId => tagId !== id)
           expense.modifiedAt = now
         })
+      await db.templates
+        .filter(t => (t.tagIds ?? []).includes(id))
+        .modify(template => {
+          template.tagIds = template.tagIds.filter(tagId => tagId !== id)
+          template.modifiedAt = now
+        })
       await db.tags.put({ ...existing, deleted: true, modifiedAt: now })
     })
     tags.value = tags.value.filter(t => t.id !== id)
-    await useExpensesStore().hydrate()
+    await Promise.all([useExpensesStore().hydrate(), useTemplatesStore().hydrate()])
     useSyncStore().scheduleSync()
   }
 

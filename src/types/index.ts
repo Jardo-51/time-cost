@@ -43,6 +43,7 @@ export interface ExpenseTemplate extends SyncFields {
   amount: number
   currency: string
   categoryId: string
+  tagIds: string[]
   sortOrder: number
 }
 

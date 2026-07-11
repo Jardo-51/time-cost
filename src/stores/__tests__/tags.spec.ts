@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { db } from '@/db'
 import { useExpensesStore } from '@/stores/expenses'
 import { useTagsStore } from '@/stores/tags'
+import { useTemplatesStore } from '@/stores/templates'
 
 async function addExpense (tagIds: string[]) {
   return useExpensesStore().add({
@@ -18,7 +19,12 @@ async function addExpense (tagIds: string[]) {
 describe('tags store', () => {
   beforeEach(async () => {
     setActivePinia(createPinia())
-    await Promise.all([db.expenses.clear(), db.tags.clear(), db.syncItems.clear()])
+    await Promise.all([
+      db.expenses.clear(),
+      db.templates.clear(),
+      db.tags.clear(),
+      db.syncItems.clear(),
+    ])
   })
 
   it('ensureIds creates missing tags and reuses existing ones case-insensitively', async () => {
@@ -59,6 +65,41 @@ describe('tags store', () => {
     expect(reloaded?.tagIds).toEqual([lunchId])
     expect(reloaded!.modifiedAt).toBeGreaterThanOrEqual(tagged.modifiedAt)
     expect(expenses.expenses.find(e => e.id === untouched.id)?.tagIds).toEqual([lunchId])
+  })
+
+  it('remove detaches the tag from templates', async () => {
+    const tags = useTagsStore()
+    const templates = useTemplatesStore()
+
+    const [tripId] = await tags.ensureIds(['trip']) as [string]
+    await templates.add({
+      name: 'Coffee',
+      amount: 3,
+      currency: 'EUR',
+      categoryId: 'default-food',
+      tagIds: [tripId],
+    })
+
+    await tags.remove(tripId)
+    expect(templates.templates[0]?.tagIds).toEqual([])
+  })
+
+  it('applyTemplate copies the template tags onto the expense', async () => {
+    const tags = useTagsStore()
+    const templates = useTemplatesStore()
+
+    const [tripId] = await tags.ensureIds(['trip']) as [string]
+    await templates.add({
+      name: 'Coffee',
+      amount: 3,
+      currency: 'EUR',
+      categoryId: 'default-food',
+      tagIds: [tripId],
+    })
+
+    const expense = await templates.applyTemplate(templates.templates[0]!.id)
+    expect(expense?.tagIds).toEqual([tripId])
+    expect(expense?.tagIds).not.toBe(templates.templates[0]!.tagIds)
   })
 
   it('hydrate defaults tagIds for expenses stored without them', async () => {
