@@ -20,7 +20,7 @@ Severity legend:
 
 ## CRITICAL
 
-- [ ] **1. CSP `connect-src 'self'` blocks the FX API and all Etebase sync in production** — `public/.htaccess:11`
+- [x] **1. CSP `connect-src 'self'` blocks the FX API and all Etebase sync in production** — `public/.htaccess:11`
   The deployed Content-Security-Policy only allows `connect-src 'self'`, but the app fetches `https://api.frankfurter.dev` (`src/services/fx.ts:3`) and the user-configured Etebase server (login, `isEtebaseServer`, every sync request). All of these are blocked by the browser under this policy, including the service worker's `NetworkFirst` fetch for FX (the SW inherits the CSP served with `sw.js`, which `Header set` applies to). Exchange rates and sync work in `pnpm dev` but fail completely on the Apache deployment.
   **Fix:** `connect-src 'self' https://api.frankfurter.dev https:;` — the trailing `https:` (or a documented allowlist) is required because the Etebase server hostname is user-configured and unknown at build time.
 

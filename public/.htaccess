@@ -8,7 +8,10 @@
     Header set Expires "0"
 </Files>
 
-Header set Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self'; connect-src 'self'; manifest-src 'self'; worker-src 'self'; frame-ancestors 'none'; base-uri 'self';"
+# connect-src must allow the FX API and the user-configured Etebase server.
+# The Etebase hostname is unknown at build time, so a broad `https:` is required
+# in addition to the pinned FX origin.
+Header set Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self'; connect-src 'self' https://api.frankfurter.dev https:; manifest-src 'self'; worker-src 'self'; frame-ancestors 'none'; base-uri 'self';"
 Header set X-Content-Type-Options "nosniff"
 Header set X-Frame-Options "DENY"
 
