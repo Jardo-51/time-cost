@@ -10,6 +10,7 @@ import { db } from '@/db'
 import { seedDefaults } from '@/db/seed'
 import { syncOnce } from '@/services/sync/engine'
 import * as account from '@/services/sync/etebase'
+import { useCategoriesStore } from '@/stores/categories'
 import { useExpensesStore } from '@/stores/expenses'
 
 const SERVER = process.env.ETEBASE_URL ?? 'http://localhost:3735'
@@ -136,6 +137,28 @@ describe.skipIf(!available)('etebase sync engine (e2e against local server)', ()
     await syncOnce()
     const local = await db.expenses.get(created.id)
     expect(local?.deleted).toBe(true)
+  }, 120_000)
+
+  // Regression test for finding #2: a fresh device seeds the defaults locally
+  // before its first sync. If those seeds carried Date.now(), they would beat
+  // the older remote rename under LWW and revert it everywhere.
+  it('does not let a fresh device\'s seeds clobber a synced rename of a default category', async () => {
+    const categories = useCategoriesStore()
+    await categories.hydrate()
+    await categories.update('default-food', { name: 'Groceries' })
+    await syncOnce()
+
+    await freshDevice(username, password)
+    await syncOnce()
+
+    const pulled = await db.categories.get('default-food')
+    expect(pulled?.name).toBe('Groceries')
+
+    // And the rename must survive being pushed back from the fresh device.
+    await syncOnce()
+    await freshDevice(username, password)
+    await syncOnce()
+    expect((await db.categories.get('default-food'))?.name).toBe('Groceries')
   }, 120_000)
 
   it('pushes edits of previously pulled items (revision update path)', async () => {
