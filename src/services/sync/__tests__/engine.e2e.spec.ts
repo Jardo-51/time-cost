@@ -26,6 +26,37 @@ async function serverAvailable (): Promise<boolean> {
 
 const available = await serverAvailable()
 
+// etebase's `Account.logout()` starts its HTTP request but never awaits it
+// (Etebase.js:135), so `await account.logout()` resolves while the POST is
+// still on the wire, holding a promise no caller can catch. When vitest tears
+// the happy-dom environment down it aborts that request, and the resulting
+// rejection reaches nobody — killing the worker after the suite has already
+// reported green. Tracking every request lets teardown wait for strays first.
+const inFlight = new Set<Promise<void>>()
+
+const OriginalXMLHttpRequest = globalThis.XMLHttpRequest
+
+class TrackedXMLHttpRequest extends OriginalXMLHttpRequest {
+  override send (...args: Parameters<XMLHttpRequest['send']>): void {
+    // `loadend` fires on success, error and abort alike, so this never hangs.
+    const landed = new Promise<void>(resolve => {
+      this.addEventListener('loadend', () => resolve())
+    })
+    inFlight.add(landed)
+    void landed.then(() => inFlight.delete(landed))
+    super.send(...args)
+  }
+}
+
+globalThis.XMLHttpRequest = TrackedXMLHttpRequest
+
+// Re-checks the set, so a request started while we wait is also waited for.
+async function settleNetwork (): Promise<void> {
+  while (inFlight.size > 0) {
+    await Promise.all(inFlight)
+  }
+}
+
 // Wipes all local state to simulate a brand-new device on the same account.
 async function freshDevice (username: string, password: string): Promise<void> {
   await account.logout()
@@ -66,6 +97,10 @@ describe.skipIf(!available)('etebase sync engine (e2e against local server)', ()
     } catch {
       // Server may already be gone; local cleanup happened regardless.
     }
+    // The SDK's logout POST is still unawaited in flight at this point; let it
+    // land before vitest tears the environment down and aborts it.
+    await settleNetwork()
+    globalThis.XMLHttpRequest = OriginalXMLHttpRequest
   })
 
   it('round-trips records between devices', async () => {
