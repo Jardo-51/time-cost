@@ -2,6 +2,7 @@ import type { Expense, ExpenseTemplate, SyncFields } from '@/types'
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { db } from '@/db'
+import { toPlain } from '@/db/plain'
 import { useExpensesStore } from '@/stores/expenses'
 import { useSyncStore } from '@/stores/sync'
 import { todayISO } from '@/utils/date'
@@ -31,7 +32,7 @@ export const useTemplatesStore = defineStore('templates', () => {
       modifiedAt: Date.now(),
       deleted: false,
     }
-    await db.templates.put(template)
+    await db.templates.put(toPlain(template))
     templates.value = [...templates.value, template]
     useSyncStore().scheduleSync()
   }
@@ -42,7 +43,7 @@ export const useTemplatesStore = defineStore('templates', () => {
       return
     }
     const updated: ExpenseTemplate = { ...existing, ...patch, modifiedAt: Date.now() }
-    await db.templates.put(updated)
+    await db.templates.put(toPlain(updated))
     templates.value = templates.value.map(t => (t.id === id ? updated : t))
     useSyncStore().scheduleSync()
   }
@@ -52,7 +53,7 @@ export const useTemplatesStore = defineStore('templates', () => {
     if (!existing) {
       return
     }
-    await db.templates.put({ ...existing, deleted: true, modifiedAt: Date.now() })
+    await db.templates.put(toPlain({ ...existing, deleted: true, modifiedAt: Date.now() }))
     templates.value = templates.value.filter(t => t.id !== id)
     useSyncStore().scheduleSync()
   }
@@ -68,7 +69,7 @@ export const useTemplatesStore = defineStore('templates', () => {
     const now = Date.now()
     const a: ExpenseTemplate = { ...current, sortOrder: other.sortOrder, modifiedAt: now }
     const b: ExpenseTemplate = { ...other, sortOrder: current.sortOrder, modifiedAt: now }
-    await db.templates.bulkPut([a, b])
+    await db.templates.bulkPut(toPlain([a, b]))
     templates.value = templates.value.map(t => (t.id === a.id ? a : (t.id === b.id ? b : t)))
     useSyncStore().scheduleSync()
   }

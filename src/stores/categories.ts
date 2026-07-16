@@ -3,6 +3,7 @@ import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { OTHER_CATEGORY_ID } from '@/constants/categories'
 import { db } from '@/db'
+import { toPlain } from '@/db/plain'
 import { useExpensesStore } from '@/stores/expenses'
 import { useSyncStore } from '@/stores/sync'
 import { useTemplatesStore } from '@/stores/templates'
@@ -40,7 +41,7 @@ export const useCategoriesStore = defineStore('categories', () => {
       modifiedAt: Date.now(),
       deleted: false,
     }
-    await db.categories.put(category)
+    await db.categories.put(toPlain(category))
     categories.value = [...categories.value, category]
     useSyncStore().scheduleSync()
   }
@@ -51,7 +52,7 @@ export const useCategoriesStore = defineStore('categories', () => {
       return
     }
     const updated: Category = { ...existing, ...patch, modifiedAt: Date.now() }
-    await db.categories.put(updated)
+    await db.categories.put(toPlain(updated))
     categories.value = categories.value.map(c => (c.id === id ? updated : c))
     useSyncStore().scheduleSync()
   }
@@ -72,7 +73,7 @@ export const useCategoriesStore = defineStore('categories', () => {
       await db.templates
         .filter(t => t.categoryId === id)
         .modify({ categoryId: OTHER_CATEGORY_ID, modifiedAt: now })
-      await db.categories.put({ ...existing, deleted: true, modifiedAt: now })
+      await db.categories.put(toPlain({ ...existing, deleted: true, modifiedAt: now }))
     })
     categories.value = categories.value.filter(c => c.id !== id)
     await Promise.all([useExpensesStore().hydrate(), useTemplatesStore().hydrate()])

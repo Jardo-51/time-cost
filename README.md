@@ -59,11 +59,21 @@ nix develop -c pnpm dev
 
 ```bash
 docker run -d --name etebase -p 3735:3735 \
-  -e SUPER_USER=admin -e SUPER_PASS=adminpass123 \
   -e ALLOWED_HOSTS=localhost,127.0.0.1 \
   victorrds/etesync:alpine
+
+# The suite signs up on first run but logs in on later ones, so the account
+# has to exist on the server — otherwise it fails with `UnauthorizedError:
+# User not found`.
+docker exec -e DJANGO_SUPERUSER_PASSWORD='test-password-123' etebase \
+  python /etebase/manage.py createsuperuser --noinput \
+  --username admin --email admin@example.com
+
 pnpm test
 ```
+
+The credentials default to `admin` / `test-password-123`; override them with
+`ETEBASE_TEST_USER`, `ETEBASE_TEST_PASSWORD`, and `ETEBASE_URL`.
 
 ## Project Structure
 
