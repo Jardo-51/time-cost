@@ -33,10 +33,11 @@ describe('expenses store persists hydrated records', () => {
 
     await expenses.update(created.id, { description: 'edited' })
 
+    // The real guard is that update() above didn't reject with DataCloneError;
+    // `stored` is plain by construction, having been structured-cloned by Dexie.
     const stored = await db.expenses.get(created.id)
     expect(stored?.description).toBe('edited')
     expect(stored?.tagIds).toEqual(['trip'])
-    expect(isReactive(stored?.tagIds)).toBe(false)
   })
 
   // An empty array is proxied just like a populated one, so an untagged
@@ -76,8 +77,9 @@ describe('expenses store persists hydrated records', () => {
 
     await expenses.rebaseSnapshots(2)
 
+    // As above: rebaseSnapshots() not rejecting is the assertion that matters.
     const [stored] = await db.expenses.toArray()
     expect(stored?.baseCurrency).toBe('EUR')
-    expect(isReactive(stored?.tagIds)).toBe(false)
+    expect(stored?.tagIds).toEqual(['trip'])
   })
 })
