@@ -1,4 +1,4 @@
-import { toRaw } from 'vue'
+import { toRaw, unref } from 'vue'
 
 /**
  * Deep-unwraps Vue reactive proxies so a record can cross the structured-clone
@@ -15,7 +15,10 @@ import { toRaw } from 'vue'
  * Anything new that persists a value a store could have handed it belongs here.
  */
 export function toPlain<T> (value: T): T {
-  const raw = toRaw(value)
+  // unref first: toRaw() passes a ref straight through as its RefImpl, whose
+  // prototype isn't Object.prototype, so it would sail past isPlainObject()
+  // into Dexie and be rejected for its dep/effect internals.
+  const raw = toRaw(unref(value)) as T
   if (Array.isArray(raw)) {
     return raw.map(item => toPlain(item)) as T
   }

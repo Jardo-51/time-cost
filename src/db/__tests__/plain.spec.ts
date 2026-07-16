@@ -17,6 +17,16 @@ describe('toPlain', () => {
     expect(() => structuredClone(toPlain(list.map(item => ({ ...item }))))).not.toThrow()
   })
 
+  // toRaw() alone returns a ref as its RefImpl, which structured clone rejects.
+  it('unwraps refs, at the top level and nested', () => {
+    expect(toPlain(ref(['trip']))).toEqual(['trip'])
+
+    const nested = { id: 'a', tagIds: ref(['trip']) }
+    expect(() => structuredClone(nested)).toThrow()
+    expect(() => structuredClone(toPlain(nested))).not.toThrow()
+    expect(toPlain(nested)).toEqual({ id: 'a', tagIds: ['trip'] })
+  })
+
   it('leaves non-plain objects intact', () => {
     const bytes = new Uint8Array([1, 2, 3])
     expect(toPlain({ cachedItem: bytes }).cachedItem).toBe(bytes)
