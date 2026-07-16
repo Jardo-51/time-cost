@@ -5,8 +5,14 @@ import { toRaw } from 'vue'
  * boundary into IndexedDB. Records read back out of a store's ref are deeply
  * reactive: spreading one copies the primitives by value, but a nested array
  * or object comes back through the proxy's get trap and stays a Proxy, which
- * structured clone rejects with DataCloneError. Every value handed to Dexie
- * goes through here, so no reactive value can reach the database.
+ * structured clone rejects with DataCloneError.
+ *
+ * Every write that can carry a value read back out of a store ref goes through
+ * here: all store write paths, plus setMeta(), which takes caller-supplied
+ * `unknown`. The remaining direct Dexie writers (db/seed.ts, the syncItems puts
+ * in services/sync/engine.ts, and the migration hooks above them) construct
+ * their records literally and never touch a store ref, so they're already plain.
+ * Anything new that persists a value a store could have handed it belongs here.
  */
 export function toPlain<T> (value: T): T {
   const raw = toRaw(value)
