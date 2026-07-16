@@ -3,6 +3,7 @@ import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { CATEGORY_COLORS } from '@/constants/categories'
 import { db } from '@/db'
+import { toPlain } from '@/db/plain'
 import { useExpensesStore } from '@/stores/expenses'
 import { useSyncStore } from '@/stores/sync'
 import { useTemplatesStore } from '@/stores/templates'
@@ -37,7 +38,7 @@ export const useTagsStore = defineStore('tags', () => {
       modifiedAt: Date.now(),
       deleted: false,
     }
-    await db.tags.put(tag)
+    await db.tags.put(toPlain(tag))
     tags.value = [...tags.value, tag]
     useSyncStore().scheduleSync()
     return tag
@@ -49,7 +50,7 @@ export const useTagsStore = defineStore('tags', () => {
       return
     }
     const updated: Tag = { ...existing, ...patch, modifiedAt: Date.now() }
-    await db.tags.put(updated)
+    await db.tags.put(toPlain(updated))
     tags.value = tags.value.map(t => (t.id === id ? updated : t))
     useSyncStore().scheduleSync()
   }
@@ -97,7 +98,7 @@ export const useTagsStore = defineStore('tags', () => {
           template.tagIds = template.tagIds.filter(tagId => tagId !== id)
           template.modifiedAt = now
         })
-      await db.tags.put({ ...existing, deleted: true, modifiedAt: now })
+      await db.tags.put(toPlain({ ...existing, deleted: true, modifiedAt: now }))
     })
     tags.value = tags.value.filter(t => t.id !== id)
     await Promise.all([useExpensesStore().hydrate(), useTemplatesStore().hydrate()])

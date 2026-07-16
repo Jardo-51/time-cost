@@ -2,6 +2,7 @@ import type { AppSettings, IncomePeriod, SyncFields } from '@/types'
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { db, getMeta, setMeta } from '@/db'
+import { toPlain } from '@/db/plain'
 import { useSyncStore } from '@/stores/sync'
 import { todayISO } from '@/utils/date'
 import { incomePeriodFor } from '@/utils/worktime'
@@ -56,7 +57,7 @@ export const useSettingsStore = defineStore('settings', () => {
         amount: p.amount * factor,
         modifiedAt: now,
       }))
-      await db.incomePeriods.bulkPut(converted)
+      await db.incomePeriods.bulkPut(toPlain(converted))
       incomePeriods.value = converted
 
       const { useExpensesStore } = await import('@/stores/expenses')
@@ -73,7 +74,7 @@ export const useSettingsStore = defineStore('settings', () => {
       modifiedAt: Date.now(),
       deleted: false,
     }
-    await db.incomePeriods.put(period)
+    await db.incomePeriods.put(toPlain(period))
     incomePeriods.value = [...incomePeriods.value, period]
     useSyncStore().scheduleSync()
   }
@@ -84,7 +85,7 @@ export const useSettingsStore = defineStore('settings', () => {
       return
     }
     const updated: IncomePeriod = { ...existing, ...patch, modifiedAt: Date.now() }
-    await db.incomePeriods.put(updated)
+    await db.incomePeriods.put(toPlain(updated))
     incomePeriods.value = incomePeriods.value.map(p => (p.id === id ? updated : p))
     useSyncStore().scheduleSync()
   }
@@ -94,7 +95,7 @@ export const useSettingsStore = defineStore('settings', () => {
     if (!existing) {
       return
     }
-    await db.incomePeriods.put({ ...existing, deleted: true, modifiedAt: Date.now() })
+    await db.incomePeriods.put(toPlain({ ...existing, deleted: true, modifiedAt: Date.now() }))
     incomePeriods.value = incomePeriods.value.filter(p => p.id !== id)
     useSyncStore().scheduleSync()
   }

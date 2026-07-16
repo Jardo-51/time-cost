@@ -10,6 +10,7 @@ import type {
 } from '@/types'
 import type { Table } from 'dexie'
 import Dexie from 'dexie'
+import { toPlain } from '@/db/plain'
 
 export class TimeCostDB extends Dexie {
   expenses!: Table<Expense, string>
@@ -57,8 +58,10 @@ export async function getMeta<T> (key: string): Promise<T | undefined> {
   return entry?.value as T | undefined
 }
 
+// Takes caller-supplied `unknown`, so unlike the other direct Dexie writers it
+// can't guarantee its value was freshly constructed — unwrap before the put.
 export async function setMeta (key: string, value: unknown): Promise<void> {
-  await db.meta.put({ key, value })
+  await db.meta.put(toPlain({ key, value }))
 }
 
 export async function deleteMeta (key: string): Promise<void> {

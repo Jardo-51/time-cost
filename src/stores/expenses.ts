@@ -2,6 +2,7 @@ import type { Expense } from '@/types'
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { db } from '@/db'
+import { toPlain } from '@/db/plain'
 import { useFxStore } from '@/stores/fx'
 import { useSettingsStore } from '@/stores/settings'
 import { useSyncStore } from '@/stores/sync'
@@ -49,7 +50,7 @@ export const useExpensesStore = defineStore('expenses', () => {
       modifiedAt: now,
       deleted: false,
     }
-    await db.expenses.put(expense)
+    await db.expenses.put(toPlain(expense))
     expenses.value = sortExpenses([...expenses.value, expense])
     useSyncStore().scheduleSync()
     return expense
@@ -66,7 +67,7 @@ export const useExpensesStore = defineStore('expenses', () => {
     if (patch.amount !== undefined || patch.currency !== undefined) {
       Object.assign(updated, snapshotBase(updated.amount, updated.currency))
     }
-    await db.expenses.put(updated)
+    await db.expenses.put(toPlain(updated))
     expenses.value = sortExpenses(expenses.value.map(e => (e.id === id ? updated : e)))
     useSyncStore().scheduleSync()
   }
@@ -77,7 +78,7 @@ export const useExpensesStore = defineStore('expenses', () => {
       return null
     }
     const tombstoned: Expense = { ...existing, deleted: true, modifiedAt: Date.now() }
-    await db.expenses.put(tombstoned)
+    await db.expenses.put(toPlain(tombstoned))
     expenses.value = expenses.value.filter(e => e.id !== id)
     useSyncStore().scheduleSync()
     return tombstoned
@@ -85,7 +86,7 @@ export const useExpensesStore = defineStore('expenses', () => {
 
   async function restore (expense: Expense): Promise<void> {
     const revived: Expense = { ...expense, deleted: false, modifiedAt: Date.now() }
-    await db.expenses.put(revived)
+    await db.expenses.put(toPlain(revived))
     expenses.value = sortExpenses([...expenses.value, revived])
     useSyncStore().scheduleSync()
   }
@@ -105,7 +106,7 @@ export const useExpensesStore = defineStore('expenses', () => {
         continue
       }
       const updated: Expense = { ...expense, baseAmount, baseCurrency: base, modifiedAt: Date.now() }
-      await db.expenses.put(updated)
+      await db.expenses.put(toPlain(updated))
       expenses.value = expenses.value.map(e => (e.id === expense.id ? updated : e))
       changed = true
     }
@@ -128,7 +129,7 @@ export const useExpensesStore = defineStore('expenses', () => {
       }
       return { ...expense, baseAmount, baseCurrency: base, modifiedAt: now }
     })
-    await db.expenses.bulkPut(rebased)
+    await db.expenses.bulkPut(toPlain(rebased))
     expenses.value = rebased
     useSyncStore().scheduleSync()
   }

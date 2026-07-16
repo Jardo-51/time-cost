@@ -4,6 +4,7 @@ import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { ECB_CURRENCIES } from '@/constants/currencies'
 import { db, getMeta, setMeta } from '@/db'
+import { toPlain } from '@/db/plain'
 import { fetchEurRates } from '@/services/fx'
 import { useSettingsStore } from '@/stores/settings'
 import { useSyncStore } from '@/stores/sync'
@@ -100,7 +101,7 @@ export const useFxStore = defineStore('fx', () => {
       modifiedAt: Date.now(),
       deleted: false,
     }
-    await db.customRates.put(record)
+    await db.customRates.put(toPlain(record))
     customRates.value = [...customRates.value.filter(c => c.id !== record.id), record]
     useSyncStore().scheduleSync()
     return true
@@ -111,7 +112,7 @@ export const useFxStore = defineStore('fx', () => {
     if (!existing) {
       return
     }
-    await db.customRates.put({ ...existing, deleted: true, modifiedAt: Date.now() })
+    await db.customRates.put(toPlain({ ...existing, deleted: true, modifiedAt: Date.now() }))
     customRates.value = customRates.value.filter(c => c.id !== id)
     useSyncStore().scheduleSync()
   }
