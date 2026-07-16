@@ -62,6 +62,11 @@ docker run -d --name etebase -p 3735:3735 \
   -e ALLOWED_HOSTS=localhost,127.0.0.1 \
   victorrds/etesync:alpine
 
+# `docker run -d` returns once the container exists, not once it's ready, so
+# wait for the entrypoint to finish migrating before touching the database —
+# otherwise createsuperuser races it and fails on a cold machine.
+until docker exec etebase python /etebase/manage.py migrate --check >/dev/null 2>&1; do sleep 1; done
+
 # The suite signs up on first run but logs in on later ones, so the account
 # has to exist on the server — otherwise it fails with `UnauthorizedError:
 # User not found`.
