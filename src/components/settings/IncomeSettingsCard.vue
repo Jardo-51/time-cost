@@ -240,10 +240,10 @@
 
   async function changeBaseCurrency (code: string): Promise<void> {
     if (code === settings.baseCurrency) return
-    const converted = await settings.saveBaseCurrency(code)
-    app.showSnackbar(converted
+    const switched = await settings.saveBaseCurrency(code)
+    app.showSnackbar(switched
                        ? `Base currency is now ${code} — amounts converted`
-                       : `Base currency is now ${code} — no rate known, check your income amount`,
-                     converted ? 'success' : 'warning')
+                       : `No exchange rate for ${code} yet — connect once to switch without losing your amounts`,
+                     switched ? 'success' : 'warning')
   }
 </script>

@@ -44,18 +44,21 @@ export const useFxStore = defineStore('fx', () => {
     !!rates.value && Date.now() - rates.value.fetchedAt > VERY_STALE_AFTER_MS,
   )
 
-  function toBase (amount: number, currency: string): number | null {
-    const base = useSettingsStore().baseCurrency
-    if (currency === base) {
+  function convert (amount: number, from: string, to: string): number | null {
+    if (from === to) {
       return amount
     }
     const table = effectiveEurRates.value
-    const from = table[currency]
-    const to = table[base]
-    if (!from || !to) {
+    const fromRate = table[from]
+    const toRate = table[to]
+    if (!fromRate || !toRate) {
       return null
     }
-    return (amount / from) * to
+    return (amount / fromRate) * toRate
+  }
+
+  function toBase (amount: number, currency: string): number | null {
+    return convert(amount, currency, useSettingsStore().baseCurrency)
   }
 
   async function hydrate (): Promise<void> {
@@ -131,6 +134,7 @@ export const useFxStore = defineStore('fx', () => {
     currencies,
     isStale,
     isVeryStale,
+    convert,
     toBase,
     hydrate,
     refresh,

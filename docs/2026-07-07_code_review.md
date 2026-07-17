@@ -30,11 +30,11 @@ Severity legend:
 
 ## HIGH
 
-- [ ] **3. `baseAmountOf` ignores `expense.baseCurrency`, so snapshots denominated in an old base are displayed and summed as the new base** — `src/composables/useWorktime.ts:17-21`, `src/stores/expenses.ts:88-108`
+- [x] **3. `baseAmountOf` ignores `expense.baseCurrency`, so snapshots denominated in an old base are displayed and summed as the new base** — `src/composables/useWorktime.ts:17-21`, `src/stores/expenses.ts:88-108`
   `Expense.baseAmount` carries a `baseCurrency` field precisely because snapshots can be in a different currency than the current base, but no consumer checks it. Two ways to get a mismatch: (a) finding 4 below (base change with no rates); (b) a sync race — device B creates an expense (snapshot in EUR) while device A has already switched the base to USD; B's expense syncs with `baseCurrency: 'EUR'` and nobody ever rebases it. The stale EUR number is then formatted as USD in list items and added into USD totals/charts. `backfillBaseAmounts` only repairs `baseAmount == null`, never a currency mismatch.
   **Fix:** in `baseAmountOf` (and the stats aggregations), treat `expense.baseCurrency !== settings.baseCurrency` the same as a missing snapshot (recompute via `fx.toBase`, or rebase-and-persist), and extend `backfillBaseAmounts` to repair mismatched snapshots.
 
-- [ ] **4. `saveBaseCurrency` switches the base even when no conversion rate exists, silently reinterpreting all stored amounts** — `src/stores/settings.ts:35-67`
+- [x] **4. `saveBaseCurrency` switches the base even when no conversion rate exists, silently reinterpreting all stored amounts** — `src/stores/settings.ts:35-67`
   When `factor === null` (offline first run, unknown custom base), the function still persists the new `baseCurrency` but leaves every income period amount and every expense `baseAmount` in the *old* currency. A one-time snackbar warns about income, but expenses are silently wrong forever (see finding 3), and nothing reconciles them once rates arrive.
   **Fix:** either refuse the switch until a rate is known, or convert lazily-but-correctly by honoring the per-record `baseCurrency` field (finding 3) and rebasing income periods when a rate first appears.
 
@@ -79,8 +79,9 @@ Severity legend:
 - [ ] **14. Date validity is only regex-checked, so impossible dates like `2026-13-40` are storable** — `src/components/expenses/ExpenseFormDialog.vue:146`
   `/^\d{4}-\d{2}-\d{2}$/` accepts non-existent calendar dates. Native `type="date"` inputs usually prevent this, but not every browser/platform does. Such a date sorts oddly and never matches any stats bucket. Validate via `toISODate(parseISODate(v)) === v` round-trip.
 
-- [ ] **15. `backfillBaseAmounts` is O(n²) and triggers reactivity per repaired expense** — `src/stores/expenses.ts:88-108`
+- [x] **15. `backfillBaseAmounts` is O(n²) and triggers reactivity per repaired expense** — `src/stores/expenses.ts:88-108`
   Each repaired expense rebuilds the whole `expenses.value` array via `.map`. Collect the updates, `bulkPut` once, and reassign the array once.
+  _Folded into the fix for #3/#4: the function (now `resyncBaseSnapshots`) collects repairs into a map, `bulkPut`s once, and reassigns the array once._
 
 - [ ] **16. Every sync run loads all tables into memory twice** — `src/services/sync/engine.ts:218-237, 298-310`
   `collectDirty` does `table.toArray()` for all five tables, and `purgeOldTombstones` does it again to filter a handful of tombstones. Fine at hundreds of records; wasteful at years of expense history. Use the `modifiedAt` index (`where('modifiedAt').above(...)` needs a per-table dirty watermark, or at least `filter` on a `deleted`-indexed query for the purge).

@@ -2,6 +2,7 @@ import type { Expense, WorkUnitsConfig } from '@/types'
 import { computed } from 'vue'
 import { useFxStore } from '@/stores/fx'
 import { useSettingsStore } from '@/stores/settings'
+import { resolveBaseAmount } from '@/utils/base'
 import { formatMoney } from '@/utils/money'
 import { costToWorkSeconds, formatWorktime, incomePeriodFor } from '@/utils/worktime'
 
@@ -15,9 +16,7 @@ export function useWorktime () {
   )
 
   function baseAmountOf (expense: Expense): number | null {
-    // The snapshot freezes the value; fall back to live rates only when the
-    // snapshot could not be taken (no rate available at entry).
-    return expense.baseAmount ?? fx.toBase(expense.amount, expense.currency)
+    return resolveBaseAmount(expense, settings.baseCurrency, fx.convert)
   }
 
   function workSecondsFor (expense: Expense): number | null {
