@@ -3,11 +3,13 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { isReactive } from 'vue'
 import { db } from '@/db'
 import { useExpensesStore } from '@/stores/expenses'
+import { useFxStore } from '@/stores/fx'
+import { useSettingsStore } from '@/stores/settings'
 
-async function addExpense (tagIds: string[] = []) {
+async function addExpense (tagIds: string[] = [], currency = 'EUR') {
   return useExpensesStore().add({
     amount: 10,
-    currency: 'EUR',
+    currency,
     description: 'test',
     categoryId: 'default-other',
     tagIds,
@@ -70,16 +72,38 @@ describe('expenses store persists hydrated records', () => {
     expect(stored?.tagIds).toEqual(['trip'])
   })
 
-  it('rebases snapshots of hydrated expenses', async () => {
+  it('repairs snapshots of hydrated expenses once a rate arrives', async () => {
     const expenses = useExpensesStore()
-    await addExpense(['trip'])
+    const fx = useFxStore()
+    // Entered offline: no USD rate was known, so no snapshot could be taken.
+    await addExpense(['trip'], 'USD')
     await expenses.hydrate()
+    fx.rates = { date: '2026-07-01', fetchedAt: Date.now(), rates: { USD: 1.25 } }
 
-    await expenses.rebaseSnapshots(2)
+    await expenses.resyncBaseSnapshots()
 
-    // As above: rebaseSnapshots() not rejecting is the assertion that matters.
+    // As above: resyncBaseSnapshots() not rejecting is the assertion that matters.
     const [stored] = await db.expenses.toArray()
+    expect(stored?.baseAmount).toBe(8)
     expect(stored?.baseCurrency).toBe('EUR')
     expect(stored?.tagIds).toEqual(['trip'])
+  })
+
+  // A snapshot left in a superseded base must be re-taken, not trusted: the
+  // number is right but the currency label is not.
+  it('repairs snapshots denominated in an old base currency', async () => {
+    const expenses = useExpensesStore()
+    const fx = useFxStore()
+    fx.rates = { date: '2026-07-01', fetchedAt: Date.now(), rates: { USD: 1.25 } }
+    const created = await addExpense([], 'USD')
+    await expenses.hydrate()
+    // As if synced in from a device that had not seen the base change to USD.
+    useSettingsStore().baseCurrency = 'USD'
+
+    await expenses.resyncBaseSnapshots()
+
+    const stored = await db.expenses.get(created.id)
+    expect(stored?.baseAmount).toBe(10)
+    expect(stored?.baseCurrency).toBe('USD')
   })
 })

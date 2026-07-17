@@ -33,7 +33,7 @@ export async function bootstrap (): Promise<void> {
 
   const refreshRates = async () => {
     if (await fx.refresh()) {
-      await expenses.backfillBaseAmounts()
+      await expenses.resyncBaseSnapshots()
     }
   }
   refreshRates()

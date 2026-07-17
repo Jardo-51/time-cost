@@ -6,6 +6,7 @@ import { toPlain } from '@/db/plain'
 import { useFxStore } from '@/stores/fx'
 import { useSettingsStore } from '@/stores/settings'
 import { useSyncStore } from '@/stores/sync'
+import { resolveBaseAmount } from '@/utils/base'
 
 export interface ExpenseInput {
   amount: number
@@ -91,46 +92,30 @@ export const useExpensesStore = defineStore('expenses', () => {
     useSyncStore().scheduleSync()
   }
 
-  // Fills in base-currency snapshots for expenses entered while no rate was
-  // available (e.g. offline first run). Called after a successful FX refresh.
-  async function backfillBaseAmounts (): Promise<void> {
-    const fx = useFxStore()
-    const base = useSettingsStore().baseCurrency
-    let changed = false
-    for (const expense of expenses.value) {
-      if (expense.baseAmount != null) {
-        continue
-      }
-      const baseAmount = fx.toBase(expense.amount, expense.currency)
-      if (baseAmount == null) {
-        continue
-      }
-      const updated: Expense = { ...expense, baseAmount, baseCurrency: base, modifiedAt: Date.now() }
-      await db.expenses.put(toPlain(updated))
-      expenses.value = expenses.value.map(e => (e.id === expense.id ? updated : e))
-      changed = true
-    }
-    if (changed) {
-      useSyncStore().scheduleSync()
-    }
-  }
-
-  // Re-snapshots every expense after a base-currency change: preferably from
-  // the original amount with current rates, else by converting the old
-  // snapshot with the provided cross-rate factor.
-  async function rebaseSnapshots (factor: number | null): Promise<void> {
+  // Repairs every snapshot that is missing (entered while no rate was known)
+  // or denominated in a currency that is no longer the base (after a base
+  // change, or synced in from a device that hadn't seen the change yet).
+  // Called after a successful FX refresh and after a base-currency change.
+  async function resyncBaseSnapshots (): Promise<void> {
     const fx = useFxStore()
     const base = useSettingsStore().baseCurrency
     const now = Date.now()
-    const rebased = expenses.value.map(expense => {
-      let baseAmount = fx.toBase(expense.amount, expense.currency)
-      if (baseAmount === null && expense.baseAmount !== null && factor !== null) {
-        baseAmount = expense.baseAmount * factor
+    const repaired = new Map<string, Expense>()
+    for (const expense of expenses.value) {
+      if (expense.baseAmount != null && expense.baseCurrency === base) {
+        continue
       }
-      return { ...expense, baseAmount, baseCurrency: base, modifiedAt: now }
-    })
-    await db.expenses.bulkPut(toPlain(rebased))
-    expenses.value = rebased
+      const baseAmount = resolveBaseAmount(expense, base, fx.convert)
+      if (baseAmount == null) {
+        continue
+      }
+      repaired.set(expense.id, { ...expense, baseAmount, baseCurrency: base, modifiedAt: now })
+    }
+    if (repaired.size === 0) {
+      return
+    }
+    await db.expenses.bulkPut(toPlain([...repaired.values()]))
+    expenses.value = expenses.value.map(e => repaired.get(e.id) ?? e)
     useSyncStore().scheduleSync()
   }
 
@@ -141,7 +126,6 @@ export const useExpensesStore = defineStore('expenses', () => {
     update,
     remove,
     restore,
-    backfillBaseAmounts,
-    rebaseSnapshots,
+    resyncBaseSnapshots,
   }
 })

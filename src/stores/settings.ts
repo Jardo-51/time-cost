@@ -29,21 +29,28 @@ export const useSettingsStore = defineStore('settings', () => {
     incomePeriods.value = (await db.incomePeriods.toArray()).filter(p => !p.deleted)
   }
 
-  // Changing the base currency converts income amounts and expense
-  // snapshots with the current cross rate (returns false when no rate is
-  // known and amounts were left untouched). Dynamic imports avoid a module
-  // cycle with the fx/expenses stores.
+  // Changing the base currency converts income amounts and expense snapshots
+  // with the current cross rate. Without a rate the switch is refused
+  // (returns false) rather than silently reinterpreting stored amounts:
+  // income periods carry no currency of their own, so their numbers would
+  // keep their old-base values under the new label with nothing able to
+  // reconcile them later. Refusal is unnecessary when there is no such data
+  // yet — the offline first run can still pick any base. Dynamic imports
+  // avoid a module cycle with the fx/expenses stores.
   async function saveBaseCurrency (code: string): Promise<boolean> {
     const oldBase = baseCurrency.value
     if (code === oldBase) {
       return true
     }
     const { useFxStore } = await import('@/stores/fx')
+    const { useExpensesStore } = await import('@/stores/expenses')
     const fx = useFxStore()
-    const table = fx.effectiveEurRates
-    const from = table[oldBase]
-    const to = table[code]
-    const factor = from && to ? to / from : null
+    const expenses = useExpensesStore()
+    const factor = fx.convert(1, oldBase, code)
+
+    if (factor === null && (incomePeriods.value.length > 0 || expenses.expenses.length > 0)) {
+      return false
+    }
 
     const now = Date.now()
     baseCurrency.value = code
@@ -60,11 +67,10 @@ export const useSettingsStore = defineStore('settings', () => {
       await db.incomePeriods.bulkPut(toPlain(converted))
       incomePeriods.value = converted
 
-      const { useExpensesStore } = await import('@/stores/expenses')
-      await useExpensesStore().rebaseSnapshots(factor)
+      await expenses.resyncBaseSnapshots()
     }
     useSyncStore().scheduleSync()
-    return factor !== null
+    return true
   }
 
   async function addIncomePeriod (input: IncomePeriodInput): Promise<void> {
