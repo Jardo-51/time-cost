@@ -58,4 +58,20 @@ describe('resolveBaseAmount', () => {
     const orphan = expense({ currency: 'XYZ', baseAmount: null })
     expect(resolveBaseAmount(orphan, 'EUR', convert)).toBeNull()
   })
+
+  // Records synced in from an older build can drop the field entirely rather
+  // than carry an explicit null, including in the one combination that would
+  // otherwise be trusted as a snapshot and returned as undefined.
+  describe('treats an absent baseAmount as no snapshot', () => {
+    const legacy = (fields: Partial<Expense>) =>
+      expense({ baseAmount: undefined as unknown as null, ...fields })
+
+    it('recomputes when the base currency happens to match', () => {
+      expect(resolveBaseAmount(legacy({ baseCurrency: 'EUR' }), 'EUR', convert)).toBe(8)
+    })
+
+    it('returns null when nothing reaches the base currency', () => {
+      expect(resolveBaseAmount(legacy({ currency: 'XYZ' }), 'EUR', convert)).toBeNull()
+    })
+  })
 })

@@ -14,14 +14,16 @@ export type ConvertFn = (amount: number, from: string, to: string) => number | n
  * stale snapshot, and finally to null when no rate reaches `base` at all.
  */
 export function resolveBaseAmount (expense: Expense, base: string, convert: ConvertFn): number | null {
-  if (expense.baseAmount !== null && expense.baseCurrency === base) {
+  // Loose null checks: records synced in from older builds can arrive with the
+  // field absent rather than null.
+  if (expense.baseAmount != null && expense.baseCurrency === base) {
     return expense.baseAmount
   }
   const live = convert(expense.amount, expense.currency, base)
   if (live !== null) {
     return live
   }
-  return expense.baseAmount === null
+  return expense.baseAmount == null
     ? null
     : convert(expense.baseAmount, expense.baseCurrency, base)
 }
