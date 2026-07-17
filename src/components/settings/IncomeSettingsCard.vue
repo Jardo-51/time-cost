@@ -240,10 +240,14 @@
 
   async function changeBaseCurrency (code: string): Promise<void> {
     if (code === settings.baseCurrency) return
+    const oldBase = settings.baseCurrency
     const switched = await settings.saveBaseCurrency(code)
+    // Either side of the pair can be the one without a rate, and a custom
+    // currency's rate only ever arrives by hand — so name the pair rather than
+    // blame the new code or promise that connecting will fix it.
     app.showSnackbar(switched
                        ? `Base currency is now ${code} — amounts converted`
-                       : `No exchange rate for ${code} yet — connect once to switch without losing your amounts`,
+                       : `Can't switch to ${code} yet — no exchange rate between ${oldBase} and ${code} is known`,
                      switched ? 'success' : 'warning')
   }
 </script>
