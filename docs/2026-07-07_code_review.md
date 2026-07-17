@@ -53,7 +53,7 @@ Severity legend:
   **Fix:** either start the `victorrds/etesync` container as a service in `build.yml`, or add unit tests for `applyRemoteRecord`/`collectDirty`/`purgeOldTombstones` with a mocked item manager (they are pure-ish over Dexie + fake-indexeddb).
   _Not applicable: already resolved. `.github/workflows/build.yml` now starts the `victorrds/etesync` container (pinned by digest), waits for it to migrate and listen, creates the test account, and runs `pnpm test` with `ETEBASE_REQUIRED=1` (lines 37-69) — which turns the e2e suite's self-skip into a hard build failure. The engine's LWW/tombstone/stoken paths are exercised against a real server on every push. This was the review's first suggested fix._
 
-- [ ] **8. Bootstrap failure is swallowed: the app mounts with empty stores and an unhandled rejection** — `src/main.ts:25`, `src/bootstrap.ts`
+- [x] **8. Bootstrap failure is swallowed: the app mounts with empty stores and an unhandled rejection** — `src/main.ts:25`, `src/bootstrap.ts`
   `bootstrap().finally(() => app.mount('#app'))` mounts even when IndexedDB is unavailable (Firefox private browsing, storage pressure) or seeding/hydration throws. The user sees the "Add your first expense" empty state over their real (inaccessible) data, and the rejection escapes unhandled.
   **Fix:** `.catch` the bootstrap error, surface a "storage unavailable / failed to load data" screen or snackbar, and log the error.
 
