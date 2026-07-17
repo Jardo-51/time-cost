@@ -48,9 +48,10 @@ Severity legend:
   `getCollection` does list-then-create with no uniqueness guarantee. If two devices run their first sync concurrently (or a retry after a partial failure), each creates its own `com.timecost.app` collection. Afterwards `data.find(c => !c.isDeleted)` picks an arbitrary one per device and the account's data is silently split in two.
   **Fix:** after creating, re-list and prefer a deterministic winner (e.g. lowest `uid`), migrating items if the local collection lost; or at minimum surface an error when more than one non-deleted collection exists.
 
-- [ ] **7. The sync engine — the most intricate module — has zero test coverage in CI** — `src/services/sync/__tests__/engine.e2e.spec.ts:38`, `.github/workflows/build.yml`
+- [x] **7. The sync engine — the most intricate module — has zero test coverage in CI** — `src/services/sync/__tests__/engine.e2e.spec.ts:38`, `.github/workflows/build.yml`
   The only tests for `engine.ts` are e2e tests that self-skip when no Etebase server is reachable, and the CI workflow doesn't start one. All LWW/tombstone/stoken logic is effectively unverified on every push.
   **Fix:** either start the `victorrds/etesync` container as a service in `build.yml`, or add unit tests for `applyRemoteRecord`/`collectDirty`/`purgeOldTombstones` with a mocked item manager (they are pure-ish over Dexie + fake-indexeddb).
+  _Not applicable: already resolved. `.github/workflows/build.yml` now starts the `victorrds/etesync` container (pinned by digest), waits for it to migrate and listen, creates the test account, and runs `pnpm test` with `ETEBASE_REQUIRED=1` (lines 37-69) — which turns the e2e suite's self-skip into a hard build failure. The engine's LWW/tombstone/stoken paths are exercised against a real server on every push. This was the review's first suggested fix._
 
 - [ ] **8. Bootstrap failure is swallowed: the app mounts with empty stores and an unhandled rejection** — `src/main.ts:25`, `src/bootstrap.ts`
   `bootstrap().finally(() => app.mount('#app'))` mounts even when IndexedDB is unavailable (Firefox private browsing, storage pressure) or seeding/hydration throws. The user sees the "Add your first expense" empty state over their real (inaccessible) data, and the rejection escapes unhandled.
