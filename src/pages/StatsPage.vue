@@ -85,6 +85,12 @@
     ),
   )
 
+  // Indexed once per category change: the store's byId is a linear find, and
+  // both the fold below and categoryStats would otherwise call it in a loop.
+  const categoryById = computed(() =>
+    new Map(categories.categories.map(c => [c.id, c])),
+  )
+
   // Derived once and shared: both aggregates below need the same per-expense
   // values, and each one costs an income-period scan.
   const rows = computed(() =>
@@ -93,7 +99,9 @@
       // pointing at a tombstone. Fold those into "Other" — the same place a
       // local delete would have put them — so the breakdown accounts for every
       // expense the totals card counts.
-      categoryId: categories.byId(expense.categoryId) ? expense.categoryId : OTHER_CATEGORY_ID,
+      categoryId: categoryById.value.has(expense.categoryId)
+        ? expense.categoryId
+        : OTHER_CATEGORY_ID,
       base: baseAmountOf(expense),
       seconds: workSecondsFor(expense),
     })),
@@ -135,7 +143,7 @@
     const total = totals.value.base
     const stats: CategoryStat[] = []
     for (const [categoryId, entry] of byCategory) {
-      const category = categories.byId(categoryId)
+      const category = categoryById.value.get(categoryId)
       if (!category) continue
       stats.push({
         category,
