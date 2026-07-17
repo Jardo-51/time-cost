@@ -79,14 +79,40 @@ describe.skipIf(!available)('etebase sync engine (e2e against local server)', ()
   }, 60_000)
 
   afterAll(async () => {
-    try {
-      await account.logout()
-    } catch {
-      // Server may already be gone; local cleanup happened regardless.
+    // The unawaited logout promise is unreachable however it settles, so the
+    // abort at teardown is only one of its two failure modes: `newCall` checks
+    // `response.status` *after* `onload` resolves and throws for a non-2xx
+    // (OnlineManagers.js:81), e.g. `UnauthorizedError` on a stale token. That
+    // rejection is just as uncatchable, and draining does nothing about it.
+    //
+    // vitest's worker stands down from reporting unhandled rejections while a
+    // second listener is registered (`processListeners(event).length > 1` in
+    // its init chunk), so this guard suppresses them for real. It also eats any
+    // *genuine* stray rejection while installed, hence the narrow window and
+    // the warn below rather than a silent swallow.
+    const stray: unknown[] = []
+    const onUnhandledRejection = (reason: unknown): void => {
+      stray.push(reason)
     }
-    // The SDK's logout POST is still unawaited in flight at this point; let it
-    // land before vitest tears the environment down and aborts it.
-    await happyDOM.waitUntilComplete()
+    process.on('unhandledRejection', onUnhandledRejection)
+    try {
+      try {
+        await account.logout()
+      } catch {
+        // Server may already be gone; local cleanup happened regardless.
+      }
+      // The SDK's logout POST is still unawaited in flight at this point; let it
+      // land before vitest tears the environment down and aborts it.
+      await happyDOM.waitUntilComplete()
+      // A non-2xx rejects a microtask after `onload`, i.e. after the drain
+      // returns. Give it a turn to surface while the guard is still up.
+      await new Promise(resolve => setTimeout(resolve, 0))
+    } finally {
+      process.off('unhandledRejection', onUnhandledRejection)
+    }
+    for (const reason of stray) {
+      console.warn('Ignored unreachable rejection from etebase logout:', reason)
+    }
   })
 
   it('round-trips records between devices', async () => {
