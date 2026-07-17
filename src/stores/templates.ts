@@ -5,6 +5,7 @@ import { db } from '@/db'
 import { toPlain } from '@/db/plain'
 import { useExpensesStore } from '@/stores/expenses'
 import { useSyncStore } from '@/stores/sync'
+import { nextModifiedAt } from '@/utils/clock'
 import { todayISO } from '@/utils/date'
 
 export type TemplateInput = Omit<ExpenseTemplate, keyof SyncFields | 'sortOrder'>
@@ -29,7 +30,7 @@ export const useTemplatesStore = defineStore('templates', () => {
       ...input,
       sortOrder: maxOrder + 1,
       id: crypto.randomUUID(),
-      modifiedAt: Date.now(),
+      modifiedAt: nextModifiedAt(),
       deleted: false,
     }
     await db.templates.put(toPlain(template))
@@ -42,7 +43,7 @@ export const useTemplatesStore = defineStore('templates', () => {
     if (!existing) {
       return
     }
-    const updated: ExpenseTemplate = { ...existing, ...patch, modifiedAt: Date.now() }
+    const updated: ExpenseTemplate = { ...existing, ...patch, modifiedAt: nextModifiedAt() }
     await db.templates.put(toPlain(updated))
     templates.value = templates.value.map(t => (t.id === id ? updated : t))
     useSyncStore().scheduleSync()
@@ -53,7 +54,7 @@ export const useTemplatesStore = defineStore('templates', () => {
     if (!existing) {
       return
     }
-    await db.templates.put(toPlain({ ...existing, deleted: true, modifiedAt: Date.now() }))
+    await db.templates.put(toPlain({ ...existing, deleted: true, modifiedAt: nextModifiedAt() }))
     templates.value = templates.value.filter(t => t.id !== id)
     useSyncStore().scheduleSync()
   }
@@ -66,7 +67,7 @@ export const useTemplatesStore = defineStore('templates', () => {
       return
     }
     const current = list[index]!
-    const now = Date.now()
+    const now = nextModifiedAt()
     const a: ExpenseTemplate = { ...current, sortOrder: other.sortOrder, modifiedAt: now }
     const b: ExpenseTemplate = { ...other, sortOrder: current.sortOrder, modifiedAt: now }
     await db.templates.bulkPut(toPlain([a, b]))

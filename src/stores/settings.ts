@@ -4,6 +4,7 @@ import { computed, ref } from 'vue'
 import { db, getMeta, setMeta } from '@/db'
 import { toPlain } from '@/db/plain'
 import { useSyncStore } from '@/stores/sync'
+import { nextModifiedAt } from '@/utils/clock'
 import { todayISO } from '@/utils/date'
 import { incomePeriodFor } from '@/utils/worktime'
 
@@ -52,7 +53,7 @@ export const useSettingsStore = defineStore('settings', () => {
       return false
     }
 
-    const now = Date.now()
+    const now = nextModifiedAt()
     baseCurrency.value = code
     settingsModifiedAt.value = now
     const settings: AppSettings = { baseCurrency: code, modifiedAt: now }
@@ -77,7 +78,7 @@ export const useSettingsStore = defineStore('settings', () => {
     const period: IncomePeriod = {
       ...input,
       id: crypto.randomUUID(),
-      modifiedAt: Date.now(),
+      modifiedAt: nextModifiedAt(),
       deleted: false,
     }
     await db.incomePeriods.put(toPlain(period))
@@ -90,7 +91,7 @@ export const useSettingsStore = defineStore('settings', () => {
     if (!existing) {
       return
     }
-    const updated: IncomePeriod = { ...existing, ...patch, modifiedAt: Date.now() }
+    const updated: IncomePeriod = { ...existing, ...patch, modifiedAt: nextModifiedAt() }
     await db.incomePeriods.put(toPlain(updated))
     incomePeriods.value = incomePeriods.value.map(p => (p.id === id ? updated : p))
     useSyncStore().scheduleSync()
@@ -101,7 +102,7 @@ export const useSettingsStore = defineStore('settings', () => {
     if (!existing) {
       return
     }
-    await db.incomePeriods.put(toPlain({ ...existing, deleted: true, modifiedAt: Date.now() }))
+    await db.incomePeriods.put(toPlain({ ...existing, deleted: true, modifiedAt: nextModifiedAt() }))
     incomePeriods.value = incomePeriods.value.filter(p => p.id !== id)
     useSyncStore().scheduleSync()
   }

@@ -7,6 +7,7 @@ import { toPlain } from '@/db/plain'
 import { useExpensesStore } from '@/stores/expenses'
 import { useSyncStore } from '@/stores/sync'
 import { useTemplatesStore } from '@/stores/templates'
+import { nextModifiedAt } from '@/utils/clock'
 
 export type TagInput = Omit<Tag, keyof SyncFields>
 
@@ -35,7 +36,7 @@ export const useTagsStore = defineStore('tags', () => {
       ...input,
       name: input.name.trim(),
       id: crypto.randomUUID(),
-      modifiedAt: Date.now(),
+      modifiedAt: nextModifiedAt(),
       deleted: false,
     }
     await db.tags.put(toPlain(tag))
@@ -49,7 +50,7 @@ export const useTagsStore = defineStore('tags', () => {
     if (!existing) {
       return
     }
-    const updated: Tag = { ...existing, ...patch, modifiedAt: Date.now() }
+    const updated: Tag = { ...existing, ...patch, modifiedAt: nextModifiedAt() }
     await db.tags.put(toPlain(updated))
     tags.value = tags.value.map(t => (t.id === id ? updated : t))
     useSyncStore().scheduleSync()
@@ -82,7 +83,7 @@ export const useTagsStore = defineStore('tags', () => {
     if (!existing) {
       return
     }
-    const now = Date.now()
+    const now = nextModifiedAt()
     await db.transaction('rw', [db.tags, db.expenses, db.templates], async () => {
       await db.expenses
         .where('tagIds')

@@ -69,8 +69,9 @@ Severity legend:
   Five stores repeat hydrate-filter-deleted, add-with-uuid/modifiedAt, update-find-merge-put, remove-tombstone-put, plus `scheduleSync()` after each. That is ~150 duplicated lines where a bug fix (e.g. finding 9's transactional discipline, or a future `modifiedAt` change) must be applied five times.
   **Fix:** extract a small generic helper (e.g. `createSyncedTable<T>(table)` returning `hydrate/add/update/remove`) and compose stores from it.
 
-- [ ] **12. LWW conflict resolution trusts unsynchronized device clocks** — `src/services/sync/engine.ts:14`, all stores' `modifiedAt: Date.now()`
+- [x] **12. LWW conflict resolution trusts unsynchronized device clocks** — `src/services/sync/engine.ts:14`, all stores' `modifiedAt: Date.now()`
   A device with a clock set hours ahead permanently wins every conflict, and `remoteModifiedAt <= local.modifiedAt` equality (`engine.ts:171`) treats an exact tie as "already applied". This is an accepted design tradeoff for this app class, but it deserves a documented mitigation (e.g. clamping `modifiedAt` to `max(Date.now(), lastKnown + 1)` monotonically per device).
+  _Fixed: `src/utils/clock.ts` adds `nextModifiedAt()` — a per-device monotonic clamp `max(Date.now(), last + 1)` — and every store now stamps `modifiedAt` through it instead of `Date.now()`. `observeModifiedAt()` feeds it every remote timestamp during pull so a local edit is never minted behind a revision the device has already seen. The engine header documents the tie/monotonic behaviour and that cross-device skew remains an accepted tradeoff._
 
 - [x] **13. `applyRemoteSettings` reports success for an unparsable payload** — `src/services/sync/engine.ts:129-131`
   When the item content fails to parse (`payload === null`), the function returns `true` ("local copy matches remote"), so `lastSyncedModifiedAt` is set to the remote revision even though nothing was applied. Harmless today (local settings newer would still be pushed), but it corrupts the meaning of the sync bookkeeping and will bite any future logic built on it. `applyRemoteRecord` correctly returns `false` in the same situation.

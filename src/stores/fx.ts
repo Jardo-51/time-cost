@@ -8,6 +8,7 @@ import { toPlain } from '@/db/plain'
 import { fetchEurRates } from '@/services/fx'
 import { useSettingsStore } from '@/stores/settings'
 import { useSyncStore } from '@/stores/sync'
+import { nextModifiedAt } from '@/utils/clock'
 
 const REFRESH_AFTER_MS = 12 * 3600 * 1000
 const STALE_AFTER_MS = 24 * 3600 * 1000
@@ -101,7 +102,7 @@ export const useFxStore = defineStore('fx', () => {
       code: normalized,
       name: name.trim(),
       rateToEur: rateToBase / baseRate,
-      modifiedAt: Date.now(),
+      modifiedAt: nextModifiedAt(),
       deleted: false,
     }
     await db.customRates.put(toPlain(record))
@@ -115,7 +116,7 @@ export const useFxStore = defineStore('fx', () => {
     if (!existing) {
       return
     }
-    await db.customRates.put(toPlain({ ...existing, deleted: true, modifiedAt: Date.now() }))
+    await db.customRates.put(toPlain({ ...existing, deleted: true, modifiedAt: nextModifiedAt() }))
     customRates.value = customRates.value.filter(c => c.id !== id)
     useSyncStore().scheduleSync()
   }

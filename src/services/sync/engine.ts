@@ -9,10 +9,17 @@ import { useFxStore } from '@/stores/fx'
 import { useSettingsStore } from '@/stores/settings'
 import { useTagsStore } from '@/stores/tags'
 import { useTemplatesStore } from '@/stores/templates'
+import { observeModifiedAt } from '@/utils/clock'
 
 // One Etebase collection, one encrypted item per record. Item content is
 // JSON { entity, data }; item meta { name: localId, mtime: modifiedAt }.
-// Conflicts resolve last-write-wins by the record's modifiedAt.
+// Conflicts resolve last-write-wins by the record's modifiedAt, and an exact
+// tie (remoteModifiedAt === local.modifiedAt) counts as "already applied".
+// modifiedAt is minted by the device-monotonic clock (utils/clock), which
+// keeps a local edit strictly increasing and — via observeModifiedAt below —
+// never behind a remote timestamp this device has already pulled in. Clock
+// skew *between* devices is still not resolved here; that is an accepted
+// tradeoff for this offline-first app class.
 
 const STOKEN_KEY = 'etebase.stoken'
 const BATCH_SIZE = 50
@@ -97,6 +104,9 @@ async function applyRemoteItem (
   const remoteModifiedAt = typeof payload?.data?.modifiedAt === 'number'
     ? payload.data.modifiedAt
     : (typeof meta.mtime === 'number' ? meta.mtime : Date.now())
+  // Keep the local clock from later minting an edit behind a remote revision
+  // it has already seen — LWW would silently discard such an edit.
+  observeModifiedAt(remoteModifiedAt)
 
   let entity = payload?.entity ?? null
   if (!entity && localId === 'settings') {

@@ -7,6 +7,7 @@ import { toPlain } from '@/db/plain'
 import { useExpensesStore } from '@/stores/expenses'
 import { useSyncStore } from '@/stores/sync'
 import { useTemplatesStore } from '@/stores/templates'
+import { nextModifiedAt } from '@/utils/clock'
 
 export type CategoryInput = Omit<Category, keyof SyncFields | 'isProtected'>
 
@@ -38,7 +39,7 @@ export const useCategoriesStore = defineStore('categories', () => {
     const category: Category = {
       ...input,
       id: crypto.randomUUID(),
-      modifiedAt: Date.now(),
+      modifiedAt: nextModifiedAt(),
       deleted: false,
     }
     await db.categories.put(toPlain(category))
@@ -51,7 +52,7 @@ export const useCategoriesStore = defineStore('categories', () => {
     if (!existing) {
       return
     }
-    const updated: Category = { ...existing, ...patch, modifiedAt: Date.now() }
+    const updated: Category = { ...existing, ...patch, modifiedAt: nextModifiedAt() }
     await db.categories.put(toPlain(updated))
     categories.value = categories.value.map(c => (c.id === id ? updated : c))
     useSyncStore().scheduleSync()
@@ -64,7 +65,7 @@ export const useCategoriesStore = defineStore('categories', () => {
     if (!existing || existing.isProtected) {
       return
     }
-    const now = Date.now()
+    const now = nextModifiedAt()
     await db.transaction('rw', [db.categories, db.expenses, db.templates], async () => {
       await db.expenses
         .where('categoryId')

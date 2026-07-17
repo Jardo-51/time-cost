@@ -7,6 +7,7 @@ import { useFxStore } from '@/stores/fx'
 import { useSettingsStore } from '@/stores/settings'
 import { useSyncStore } from '@/stores/sync'
 import { resolveBaseAmount } from '@/utils/base'
+import { nextModifiedAt } from '@/utils/clock'
 
 export interface ExpenseInput {
   amount: number
@@ -41,14 +42,13 @@ export const useExpensesStore = defineStore('expenses', () => {
   }
 
   async function add (input: ExpenseInput): Promise<Expense> {
-    const now = Date.now()
     const expense: Expense = {
       ...input,
       ...snapshotBase(input.amount, input.currency),
       tagIds: input.tagIds ?? [],
       id: crypto.randomUUID(),
-      createdAt: now,
-      modifiedAt: now,
+      createdAt: Date.now(),
+      modifiedAt: nextModifiedAt(),
       deleted: false,
     }
     await db.expenses.put(toPlain(expense))
@@ -62,7 +62,7 @@ export const useExpensesStore = defineStore('expenses', () => {
     if (!existing) {
       return
     }
-    const updated: Expense = { ...existing, ...patch, modifiedAt: Date.now() }
+    const updated: Expense = { ...existing, ...patch, modifiedAt: nextModifiedAt() }
     // Amount/currency edits re-snapshot with today's rates — the frozen value
     // belongs to the entry as it was; a corrected entry is a new fact.
     if (patch.amount !== undefined || patch.currency !== undefined) {
@@ -78,7 +78,7 @@ export const useExpensesStore = defineStore('expenses', () => {
     if (!existing) {
       return null
     }
-    const tombstoned: Expense = { ...existing, deleted: true, modifiedAt: Date.now() }
+    const tombstoned: Expense = { ...existing, deleted: true, modifiedAt: nextModifiedAt() }
     await db.expenses.put(toPlain(tombstoned))
     expenses.value = expenses.value.filter(e => e.id !== id)
     useSyncStore().scheduleSync()
@@ -86,7 +86,7 @@ export const useExpensesStore = defineStore('expenses', () => {
   }
 
   async function restore (expense: Expense): Promise<void> {
-    const revived: Expense = { ...expense, deleted: false, modifiedAt: Date.now() }
+    const revived: Expense = { ...expense, deleted: false, modifiedAt: nextModifiedAt() }
     await db.expenses.put(toPlain(revived))
     expenses.value = sortExpenses([...expenses.value, revived])
     useSyncStore().scheduleSync()
@@ -99,7 +99,7 @@ export const useExpensesStore = defineStore('expenses', () => {
   async function resyncBaseSnapshots (): Promise<void> {
     const fx = useFxStore()
     const base = useSettingsStore().baseCurrency
-    const now = Date.now()
+    const now = nextModifiedAt()
     const repaired = new Map<string, Expense>()
     for (const expense of expenses.value) {
       if (expense.baseAmount != null && expense.baseCurrency === base) {
