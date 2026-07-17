@@ -38,7 +38,7 @@ Severity legend:
   When `factor === null` (offline first run, unknown custom base), the function still persists the new `baseCurrency` but leaves every income period amount and every expense `baseAmount` in the *old* currency. A one-time snackbar warns about income, but expenses are silently wrong forever (see finding 3), and nothing reconciles them once rates arrive.
   **Fix:** either refuse the switch until a rate is known, or convert lazily-but-correctly by honoring the per-record `baseCurrency` field (finding 3) and rebasing income periods when a rate first appears.
 
-- [ ] **5. Deleting a category on one device orphans expenses created concurrently on another device, and stats silently drop them** — `src/stores/categories.ts:61-80`, `src/pages/StatsPage.vue:102-103`
+- [x] **5. Deleting a category on one device orphans expenses created concurrently on another device, and stats silently drop them** — `src/stores/categories.ts:61-80`, `src/pages/StatsPage.vue:102-103`
   `remove()` reassigns to "Other" only the expenses *known locally*. An expense created offline on device B in that category syncs later and keeps a `categoryId` pointing at a tombstone forever. In `StatsPage.categoryStats` such expenses hit `if (!category) continue` — they are counted in the totals card but vanish from the doughnut and breakdown, so shares don't add up and money silently "disappears" from the breakdown. The expense list falls back to a grey "?" avatar, which is fine, but stats should not drop data.
   **Fix:** map unknown/tombstoned `categoryId`s to the protected "Other" category during stats aggregation (or lazily repair records to `OTHER_CATEGORY_ID` on hydrate when the referenced category is deleted).
 
@@ -118,8 +118,9 @@ Severity legend:
 - [ ] **27. Deploy rsync never prunes old releases** — `.github/workflows/deploy.yml:51`
   Without `--delete`, hashed chunks accumulate forever on the server. Keeping a grace period is actually good for PWAs (open tabs referencing old chunks), but unbounded growth isn't; consider `--delete` plus a scheduled cleanup, or document the retention decision.
 
-- [ ] **28. Stats page computes `workSecondsFor`/`baseAmountOf` twice per expense** — `src/pages/StatsPage.vue:62-112`
+- [x] **28. Stats page computes `workSecondsFor`/`baseAmountOf` twice per expense** — `src/pages/StatsPage.vue:62-112`
   `totals` and `categoryStats` independently re-derive the same per-expense values (each of which does an `incomePeriodFor` linear scan). Compute a single `computed` list of `{ expense, base, seconds }` and derive both aggregates from it.
+  _Folded into the fix for #5: both aggregates now derive from a single `rows` computed._
 
 ## Refactoring suggestions (beyond fixes above)
 

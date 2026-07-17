@@ -60,6 +60,7 @@
   import TimeBarChart from '@/components/stats/TimeBarChart.vue'
   import TotalsCard from '@/components/stats/TotalsCard.vue'
   import { useWorktime } from '@/composables/useWorktime'
+  import { OTHER_CATEGORY_ID } from '@/constants/categories'
   import { useCategoriesStore } from '@/stores/categories'
   import { useExpensesStore } from '@/stores/expenses'
   import { useTagsStore } from '@/stores/tags'
@@ -84,23 +85,35 @@
     ),
   )
 
+  // Derived once and shared: both aggregates below need the same per-expense
+  // values, and each one costs an income-period scan.
+  const rows = computed(() =>
+    filtered.value.map(expense => ({
+      // A category deleted on another device leaves the expenses it never saw
+      // pointing at a tombstone. Fold those into "Other" — the same place a
+      // local delete would have put them — so the breakdown accounts for every
+      // expense the totals card counts.
+      categoryId: categories.byId(expense.categoryId) ? expense.categoryId : OTHER_CATEGORY_ID,
+      base: baseAmountOf(expense),
+      seconds: workSecondsFor(expense),
+    })),
+  )
+
   const totals = computed(() => {
     let base = 0
     let seconds = 0
     let anySeconds = false
     let incomplete = false
-    for (const expense of filtered.value) {
-      const b = baseAmountOf(expense)
-      if (b === null) {
+    for (const row of rows.value) {
+      if (row.base === null) {
         incomplete = true
       } else {
-        base += b
+        base += row.base
       }
-      const s = workSecondsFor(expense)
-      if (s === null) {
+      if (row.seconds === null) {
         incomplete = true
       } else {
-        seconds += s
+        seconds += row.seconds
         anySeconds = true
       }
     }
@@ -109,17 +122,15 @@
 
   const categoryStats = computed<CategoryStat[]>(() => {
     const byCategory = new Map<string, { base: number, seconds: number, anySeconds: boolean }>()
-    for (const expense of filtered.value) {
-      const entry = byCategory.get(expense.categoryId)
+    for (const row of rows.value) {
+      const entry = byCategory.get(row.categoryId)
         ?? { base: 0, seconds: 0, anySeconds: false }
-      const b = baseAmountOf(expense)
-      if (b !== null) entry.base += b
-      const s = workSecondsFor(expense)
-      if (s !== null) {
-        entry.seconds += s
+      if (row.base !== null) entry.base += row.base
+      if (row.seconds !== null) {
+        entry.seconds += row.seconds
         entry.anySeconds = true
       }
-      byCategory.set(expense.categoryId, entry)
+      byCategory.set(row.categoryId, entry)
     }
     const total = totals.value.base
     const stats: CategoryStat[] = []
