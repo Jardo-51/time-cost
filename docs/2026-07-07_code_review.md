@@ -57,7 +57,7 @@ Severity legend:
   `bootstrap().finally(() => app.mount('#app'))` mounts even when IndexedDB is unavailable (Firefox private browsing, storage pressure) or seeding/hydration throws. The user sees the "Add your first expense" empty state over their real (inaccessible) data, and the rejection escapes unhandled.
   **Fix:** `.catch` the bootstrap error, surface a "storage unavailable / failed to load data" screen or snackbar, and log the error.
 
-- [ ] **9. Pull applies remote records with a non-transactional read-compare-write, so a concurrent local edit can be lost even when it is newer** — `src/services/sync/engine.ts:144-177`
+- [x] **9. Pull applies remote records with a non-transactional read-compare-write, so a concurrent local edit can be lost even when it is newer** — `src/services/sync/engine.ts:144-177`
   `applyRemoteRecord` does `table.get(localId)` → compare → `table.put(...)`. If the user saves an edit between the get and the put (sync runs in the background while the UI is live), the put overwrites the fresh edit with remote data even though the edit's `modifiedAt` is newer — violating the engine's own LWW contract.
   **Fix:** wrap the get/compare/put per record in `db.transaction('rw', table, ...)` so the comparison and write are atomic.
 
@@ -72,7 +72,7 @@ Severity legend:
 - [ ] **12. LWW conflict resolution trusts unsynchronized device clocks** — `src/services/sync/engine.ts:14`, all stores' `modifiedAt: Date.now()`
   A device with a clock set hours ahead permanently wins every conflict, and `remoteModifiedAt <= local.modifiedAt` equality (`engine.ts:171`) treats an exact tie as "already applied". This is an accepted design tradeoff for this app class, but it deserves a documented mitigation (e.g. clamping `modifiedAt` to `max(Date.now(), lastKnown + 1)` monotonically per device).
 
-- [ ] **13. `applyRemoteSettings` reports success for an unparsable payload** — `src/services/sync/engine.ts:129-131`
+- [x] **13. `applyRemoteSettings` reports success for an unparsable payload** — `src/services/sync/engine.ts:129-131`
   When the item content fails to parse (`payload === null`), the function returns `true` ("local copy matches remote"), so `lastSyncedModifiedAt` is set to the remote revision even though nothing was applied. Harmless today (local settings newer would still be pushed), but it corrupts the meaning of the sync bookkeeping and will bite any future logic built on it. `applyRemoteRecord` correctly returns `false` in the same situation.
 
 ## LOW

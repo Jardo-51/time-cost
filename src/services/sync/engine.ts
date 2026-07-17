@@ -129,7 +129,11 @@ async function applyRemoteSettings (
   touched: Set<SyncEntity>,
 ): Promise<boolean> {
   if (!payload) {
-    return true
+    // Content didn't parse: nothing was applied, so the local copy does NOT
+    // match this remote revision. Reporting success here would advance
+    // lastSyncedModifiedAt past a revision we never applied (applyRemoteRecord
+    // returns false in the same situation).
+    return false
   }
   const local = await getMeta<AppSettings>('appSettings')
   if (local && remoteModifiedAt <= local.modifiedAt) {
@@ -155,27 +159,33 @@ async function applyRemoteRecord (
   if (!table) {
     return false
   }
-  const local = await table.get(localId)
-  if (remoteDeleted) {
-    if (!local) {
+  // Sync runs in the background while the UI is live. Read, compare and write
+  // in one transaction so a concurrent local edit committed between the get
+  // and the put can't be silently clobbered by older remote data — the LWW
+  // comparison and the write must see the same snapshot.
+  return db.transaction('rw', table, async () => {
+    const local = await table.get(localId)
+    if (remoteDeleted) {
+      if (!local) {
+        return true
+      }
+      if (local.modifiedAt > remoteModifiedAt) {
+        return false // local edit wins over the remote delete
+      }
+      await table.put({ ...local, deleted: true, modifiedAt: remoteModifiedAt })
+      touched.add(entity)
       return true
     }
-    if (local.modifiedAt > remoteModifiedAt) {
-      return false // local edit wins over the remote delete
+    if (!payload) {
+      return false
     }
-    await table.put({ ...local, deleted: true, modifiedAt: remoteModifiedAt })
+    if (local && remoteModifiedAt <= local.modifiedAt) {
+      return remoteModifiedAt === local.modifiedAt
+    }
+    await table.put({ ...payload.data, id: localId })
     touched.add(entity)
     return true
-  }
-  if (!payload) {
-    return false
-  }
-  if (local && remoteModifiedAt <= local.modifiedAt) {
-    return remoteModifiedAt === local.modifiedAt
-  }
-  await table.put({ ...payload.data, id: localId })
-  touched.add(entity)
-  return true
+  })
 }
 
 async function findEntityOfLocal (localId: string): Promise<SyncEntity | null> {
