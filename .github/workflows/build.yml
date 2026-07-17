@@ -39,6 +39,12 @@ jobs:
           timeout 180 bash -c \
             'until docker exec etebase python /etebase/manage.py migrate --check >/dev/null 2>&1; do sleep 2; done'
 
+          # Migrations being applied doesn't mean the server is listening yet,
+          # and ETEBASE_REQUIRED=1 turns "not listening yet" into a hard failure
+          # blaming an unreachable server. Wait on the port the suite probes.
+          timeout 60 bash -c \
+            'until curl -sf -o /dev/null http://localhost:3735/api/v1/authentication/is_etebase/; do sleep 1; done'
+
           # The suite signs up on first run but logs in on later ones, so the
           # account has to exist on the server up front.
           docker exec -e DJANGO_SUPERUSER_PASSWORD="$ETEBASE_TEST_PASSWORD" etebase \
