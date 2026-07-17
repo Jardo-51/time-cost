@@ -7,6 +7,13 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
+    # Job-scoped so the step that creates the account and the step that runs
+    # the suite can't drift apart: `pnpm test` reads these too, and the suite
+    # falls back to these same values when they're unset.
+    env:
+      ETEBASE_TEST_USER: admin
+      ETEBASE_TEST_PASSWORD: test-password-123
+
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -50,9 +57,6 @@ jobs:
           docker exec -e DJANGO_SUPERUSER_PASSWORD="$ETEBASE_TEST_PASSWORD" etebase \
             python /etebase/manage.py createsuperuser --noinput \
             --username "$ETEBASE_TEST_USER" --email "$ETEBASE_TEST_USER@example.com"
-        env:
-          ETEBASE_TEST_USER: admin
-          ETEBASE_TEST_PASSWORD: test-password-123
 
       - name: Build
         env:
