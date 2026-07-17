@@ -1,8 +1,13 @@
 // End-to-end test of the sync engine against a real Etebase server.
-// Requires a local server (see README):
-//   docker run -d -p 3735:3735 -e ALLOWED_HOSTS=localhost,127.0.0.1 victorrds/etesync:alpine
-// The suite self-skips when no server is reachable, so `pnpm test` stays
-// green without Docker. fake-indexeddb is installed via vitest setupFiles.
+// Requires a local server and a pre-created account — see the README's "Sync
+// end-to-end tests" section for the full sequence (the migration gate and the
+// `createsuperuser` step both matter).
+//
+// The suite self-skips when no server is reachable, so `pnpm test` stays green
+// without Docker. That convenience must not follow it into CI: set
+// ETEBASE_REQUIRED=1 there so an unreachable server fails the run instead of
+// quietly disabling every test in this file.
+// fake-indexeddb is installed via vitest setupFiles.
 import * as Etebase from 'etebase'
 import { createPinia, setActivePinia } from 'pinia'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
@@ -15,16 +20,34 @@ import { useExpensesStore } from '@/stores/expenses'
 
 const SERVER = process.env.ETEBASE_URL ?? 'http://localhost:3735'
 
+// Retained so the hard-failure message below can name the actual cause: a TLS
+// error, a DNS failure and a non-Etebase response all reach the gate as a bare
+// `false`, and in CI that's the difference between a quick fix and a bisect.
+let unavailableReason: unknown
+
 async function serverAvailable (): Promise<boolean> {
   try {
     await Etebase.ready
     return await Etebase.Account.isEtebaseServer(SERVER)
-  } catch {
+  } catch (error) {
+    unavailableReason = error
     return false
   }
 }
 
 const available = await serverAvailable()
+
+// Skipping is a local convenience; in CI it is the failure mode this gate
+// exists to prevent — a green `pnpm test` that ran none of these tests.
+if (!available && process.env.ETEBASE_REQUIRED === '1') {
+  // `isEtebaseServer` resolving false means the server answered but isn't
+  // Etebase, so there's no error to report — hence the fallback.
+  const cause = String(unavailableReason ?? 'server responded but is not an Etebase server')
+  throw new Error(
+    `ETEBASE_REQUIRED=1 but no Etebase server is reachable at ${SERVER}: ${cause}. `
+    + 'Refusing to skip the sync e2e suite. See the README\'s "Sync end-to-end tests" section.',
+  )
+}
 
 // etebase's `Account.logout()` starts its HTTP request but never awaits it
 // (Etebase.js:135), so `await account.logout()` resolves while the POST is
@@ -56,8 +79,8 @@ async function freshDevice (username: string, password: string): Promise<void> {
 
 describe.skipIf(!available)('etebase sync engine (e2e against local server)', () => {
   // Open signup is disabled on etebase-server by default; the Etebase signup
-  // handshake still works for a pre-created Django user (the container's
-  // SUPER_USER), and it is a no-op error on repeat runs.
+  // handshake still works for a Django user created up front via
+  // `createsuperuser` (see README), and it is a no-op error on repeat runs.
   const username = process.env.ETEBASE_TEST_USER ?? 'admin'
   const password = process.env.ETEBASE_TEST_PASSWORD ?? 'test-password-123'
 
