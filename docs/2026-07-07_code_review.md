@@ -44,7 +44,7 @@ Severity legend:
 
 ## MEDIUM
 
-- [ ] **6. First-sync race can create two Etebase collections → permanent split-brain** — `src/services/sync/etebase.ts:105-114`
+- [x] **6. First-sync race can create two Etebase collections → permanent split-brain** — `src/services/sync/etebase.ts:105-114`
   `getCollection` does list-then-create with no uniqueness guarantee. If two devices run their first sync concurrently (or a retry after a partial failure), each creates its own `com.timecost.app` collection. Afterwards `data.find(c => !c.isDeleted)` picks an arbitrary one per device and the account's data is silently split in two.
   **Fix:** after creating, re-list and prefer a deterministic winner (e.g. lowest `uid`), migrating items if the local collection lost; or at minimum surface an error when more than one non-deleted collection exists.
 

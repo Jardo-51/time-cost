@@ -102,18 +102,43 @@ export async function getCollection (): Promise<Etebase.Collection> {
     }
   }
 
-  const { data } = await manager.list(COLLECTION_TYPE)
-  collection = data.find(c => !c.isDeleted) ?? null
-  if (!collection) {
-    collection = await manager.create(
-      COLLECTION_TYPE,
-      { name: 'Time Cost', mtime: Date.now() },
-      '',
-    )
-    await manager.upload(collection)
-  }
+  collection = await discoverOrCreateCollection(manager)
   await setMeta(COLLECTION_KEY, manager.cacheSave(collection))
   return collection
+}
+
+// Two devices running their first sync concurrently (or a retry after a
+// partial failure) can each create a `com.timecost.app` collection, silently
+// splitting the account's data in two. There is no server-side uniqueness
+// guarantee, so we make the choice deterministic instead: whenever more than
+// one non-deleted collection exists, every device converges on the same one
+// (lowest `uid`). A freshly created collection is empty until the first push,
+// so a device that loses this race strands no data — its records are pushed
+// into the winning collection on the same sync run.
+async function discoverOrCreateCollection (
+  manager: Etebase.CollectionManager,
+): Promise<Etebase.Collection> {
+  const existing = await listCollections(manager)
+  if (existing.length > 0) {
+    return existing[0]!
+  }
+  const created = await manager.create(
+    COLLECTION_TYPE,
+    { name: 'Time Cost', mtime: Date.now() },
+    '',
+  )
+  await manager.upload(created)
+  // Re-list to catch a collection another device created concurrently and
+  // converge on the deterministic winner rather than trusting our own.
+  const afterCreate = await listCollections(manager)
+  return afterCreate[0] ?? created
+}
+
+async function listCollections (manager: Etebase.CollectionManager): Promise<Etebase.Collection[]> {
+  const { data } = await manager.list(COLLECTION_TYPE)
+  return data
+    .filter(c => !c.isDeleted)
+    .toSorted((a, b) => a.uid.localeCompare(b.uid))
 }
 
 export function getItemManager (col: Etebase.Collection): Etebase.ItemManager {
