@@ -26,6 +26,24 @@ async function serverAvailable (): Promise<boolean> {
 
 const available = await serverAvailable()
 
+// etebase's `Account.logout()` starts its HTTP request but never awaits it
+// (Etebase.js:135), so `await account.logout()` resolves while the POST is
+// still on the wire, holding a promise no caller can catch. When vitest tears
+// the happy-dom environment down it aborts that request, and the resulting
+// rejection reaches nobody — killing the worker after the suite has already
+// reported green.
+//
+// happy-dom registers every async XHR with its async task manager, and
+// `waitUntilComplete()` drains that queue, so teardown can wait for the stray
+// logout to land first. This is load-bearing on `environment: 'happy-dom'`
+// (vitest.config.ts): etebase picks its transport at import time based on
+// `global.XMLHttpRequest` (Request.js:48), so under `environment: 'node'` it
+// would take the node-fetch path instead. That swap is not silent — the
+// `happyDOM` handle below would be undefined and this suite would fail loudly.
+const { happyDOM } = globalThis as typeof globalThis & {
+  happyDOM: { waitUntilComplete: () => Promise<void> }
+}
+
 // Wipes all local state to simulate a brand-new device on the same account.
 async function freshDevice (username: string, password: string): Promise<void> {
   await account.logout()
@@ -61,10 +79,39 @@ describe.skipIf(!available)('etebase sync engine (e2e against local server)', ()
   }, 60_000)
 
   afterAll(async () => {
+    // The unawaited logout promise is unreachable however it settles, so the
+    // abort at teardown is only one of its two failure modes: `newCall` checks
+    // `response.status` *after* `onload` resolves and throws for a non-2xx
+    // (OnlineManagers.js:81), e.g. `UnauthorizedError` on a stale token. That
+    // rejection is just as uncatchable, and draining does nothing about it.
+    //
+    // vitest's worker stands down from reporting unhandled rejections while a
+    // second listener is registered (`processListeners(event).length > 1` in
+    // its init chunk), so this guard suppresses them for real. It also eats any
+    // *genuine* stray rejection while installed, hence the narrow window and
+    // the warn below rather than a silent swallow.
+    const stray: unknown[] = []
+    const onUnhandledRejection = (reason: unknown): void => {
+      stray.push(reason)
+    }
+    process.on('unhandledRejection', onUnhandledRejection)
     try {
-      await account.logout()
-    } catch {
-      // Server may already be gone; local cleanup happened regardless.
+      try {
+        await account.logout()
+      } catch {
+        // Server may already be gone; local cleanup happened regardless.
+      }
+      // The SDK's logout POST is still unawaited in flight at this point; let it
+      // land before vitest tears the environment down and aborts it.
+      await happyDOM.waitUntilComplete()
+      // A non-2xx rejects a microtask after `onload`, i.e. after the drain
+      // returns. Give it a turn to surface while the guard is still up.
+      await new Promise(resolve => setTimeout(resolve, 0))
+    } finally {
+      process.off('unhandledRejection', onUnhandledRejection)
+    }
+    for (const reason of stray) {
+      console.warn('Ignored unreachable rejection from etebase logout:', reason)
     }
   })
 
