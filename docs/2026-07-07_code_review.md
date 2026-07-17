@@ -61,7 +61,7 @@ Severity legend:
   `applyRemoteRecord` does `table.get(localId)` → compare → `table.put(...)`. If the user saves an edit between the get and the put (sync runs in the background while the UI is live), the put overwrites the fresh edit with remote data even though the edit's `modifiedAt` is newer — violating the engine's own LWW contract.
   **Fix:** wrap the get/compare/put per record in `db.transaction('rw', table, ...)` so the comparison and write are atomic.
 
-- [ ] **10. No double-submit guard on record creation: quick-add chips and dialog Save buttons create duplicates on double tap** — `src/components/expenses/QuickAddRow.vue:36`, `src/components/expenses/ExpenseFormDialog.vue:168`, `src/components/templates/TemplateFormDialog.vue:111`
+- [x] **10. No double-submit guard on record creation: quick-add chips and dialog Save buttons create duplicates on double tap** — `src/components/expenses/QuickAddRow.vue:36`, `src/components/expenses/ExpenseFormDialog.vue:168`, `src/components/templates/TemplateFormDialog.vue:111`
   All create paths are `async` with the button left enabled while awaiting; a double tap (common on mobile, the primary target) inserts two records.
   **Fix:** a `saving` ref driving `:disabled`/`:loading` on the buttons, and a short in-flight guard on `quickAdd`.
 

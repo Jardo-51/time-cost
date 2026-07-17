@@ -99,7 +99,7 @@
 
         <v-spacer />
         <v-btn variant="text" @click="close">Cancel</v-btn>
-        <v-btn color="primary" :disabled="!isValid" variant="flat" @click="save">Save</v-btn>
+        <v-btn color="primary" :disabled="!isValid || saving" :loading="saving" variant="flat" @click="save">Save</v-btn>
       </v-card-actions>
     </v-card>
   </v-dialog>
@@ -141,6 +141,7 @@
   const categoryId = ref(OTHER_CATEGORY_ID)
   const tagNames = ref<string[]>([])
   const date = ref(todayISO())
+  const saving = ref(false)
 
   watch(isOpen, open => {
     if (!open) return
@@ -192,20 +193,26 @@
   }
 
   async function save (): Promise<void> {
-    if (!isValid.value || parsedAmount.value === null) return
-    const input = {
-      amount: parsedAmount.value,
-      currency: currency.value,
-      description: description.value.trim(),
-      categoryId: categoryId.value,
-      tagIds: await tagsStore.ensureIds(tagNames.value),
-      date: date.value,
+    // A double tap (common on mobile) must not create two expenses.
+    if (!isValid.value || parsedAmount.value === null || saving.value) return
+    saving.value = true
+    try {
+      const input = {
+        amount: parsedAmount.value,
+        currency: currency.value,
+        description: description.value.trim(),
+        categoryId: categoryId.value,
+        tagIds: await tagsStore.ensureIds(tagNames.value),
+        date: date.value,
+      }
+      await (props.expense
+        ? expensesStore.update(props.expense.id, input)
+        : expensesStore.add(input))
+      localStorage.setItem('lastCurrency', currency.value)
+      close()
+    } finally {
+      saving.value = false
     }
-    await (props.expense
-      ? expensesStore.update(props.expense.id, input)
-      : expensesStore.add(input))
-    localStorage.setItem('lastCurrency', currency.value)
-    close()
   }
 
   async function removeExpense (): Promise<void> {
