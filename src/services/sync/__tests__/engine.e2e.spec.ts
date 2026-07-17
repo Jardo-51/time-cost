@@ -20,11 +20,17 @@ import { useExpensesStore } from '@/stores/expenses'
 
 const SERVER = process.env.ETEBASE_URL ?? 'http://localhost:3735'
 
+// Retained so the hard-failure message below can name the actual cause: a TLS
+// error, a DNS failure and a non-Etebase response all reach the gate as a bare
+// `false`, and in CI that's the difference between a quick fix and a bisect.
+let unavailableReason: unknown
+
 async function serverAvailable (): Promise<boolean> {
   try {
     await Etebase.ready
     return await Etebase.Account.isEtebaseServer(SERVER)
-  } catch {
+  } catch (error) {
+    unavailableReason = error
     return false
   }
 }
@@ -34,8 +40,11 @@ const available = await serverAvailable()
 // Skipping is a local convenience; in CI it is the failure mode this gate
 // exists to prevent — a green `pnpm test` that ran none of these tests.
 if (!available && process.env.ETEBASE_REQUIRED === '1') {
+  // `isEtebaseServer` resolving false means the server answered but isn't
+  // Etebase, so there's no error to report — hence the fallback.
+  const cause = String(unavailableReason ?? 'server responded but is not an Etebase server')
   throw new Error(
-    `ETEBASE_REQUIRED=1 but no Etebase server is reachable at ${SERVER}. `
+    `ETEBASE_REQUIRED=1 but no Etebase server is reachable at ${SERVER}: ${cause}. `
     + 'Refusing to skip the sync e2e suite. See the README\'s "Sync end-to-end tests" section.',
   )
 }
