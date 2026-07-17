@@ -24,7 +24,35 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pnpm-
 
+      # The sync e2e suite self-skips when no server is reachable, so without
+      # this the whole suite silently never runs here. See README's "Sync
+      # end-to-end tests" for the same sequence run locally.
+      - name: Start Etebase server
+        run: |
+          docker run -d --name etebase -p 3735:3735 \
+            -e ALLOWED_HOSTS=localhost,127.0.0.1 \
+            victorrds/etesync:alpine
+
+          # `docker run -d` returns once the container exists, not once it's
+          # ready; wait for the entrypoint's migrations before touching the db,
+          # otherwise createsuperuser races them.
+          timeout 180 bash -c \
+            'until docker exec etebase python /etebase/manage.py migrate --check >/dev/null 2>&1; do sleep 2; done'
+
+          # The suite signs up on first run but logs in on later ones, so the
+          # account has to exist on the server up front.
+          docker exec -e DJANGO_SUPERUSER_PASSWORD="$ETEBASE_TEST_PASSWORD" etebase \
+            python /etebase/manage.py createsuperuser --noinput \
+            --username "$ETEBASE_TEST_USER" --email "$ETEBASE_TEST_USER@example.com"
+        env:
+          ETEBASE_TEST_USER: admin
+          ETEBASE_TEST_PASSWORD: test-password-123
+
       - name: Build
+        env:
+          # Turns the e2e suite's self-skip into a hard failure: CI must never
+          # report green because the sync tests quietly didn't run.
+          ETEBASE_REQUIRED: '1'
         run: |
           nix develop --command bash -c "
             pnpm install --frozen-lockfile
