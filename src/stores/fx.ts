@@ -4,10 +4,9 @@ import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { ECB_CURRENCIES } from '@/constants/currencies'
 import { db, getMeta, setMeta } from '@/db'
-import { toPlain } from '@/db/plain'
 import { fetchEurRates } from '@/services/fx'
 import { useSettingsStore } from '@/stores/settings'
-import { useSyncStore } from '@/stores/sync'
+import { createSyncedTable } from '@/stores/syncedTable'
 import { nextModifiedAt } from '@/utils/clock'
 
 const REFRESH_AFTER_MS = 12 * 3600 * 1000
@@ -18,6 +17,14 @@ export const useFxStore = defineStore('fx', () => {
   const rates = ref<FxRates | null>(null)
   const customRates = ref<CustomRate[]>([])
   const refreshing = ref(false)
+
+  // Custom rates are upsert-shaped (a stable `fx-<CODE>` id doubling as an
+  // override), so they build their own records and go through `write` rather
+  // than the generic `add`.
+  const table = createSyncedTable<CustomRate>({
+    table: db.customRates,
+    list: customRates,
+  })
 
   // EUR-based table with user-defined rates merged in. A custom rate for an
   // ECB currency wins — it doubles as a manual override.
@@ -64,7 +71,7 @@ export const useFxStore = defineStore('fx', () => {
 
   async function hydrate (): Promise<void> {
     rates.value = (await getMeta<FxRates>('fx')) ?? null
-    customRates.value = (await db.customRates.toArray()).filter(r => !r.deleted)
+    await table.hydrate()
   }
 
   async function refresh (force = false): Promise<boolean> {
@@ -105,20 +112,8 @@ export const useFxStore = defineStore('fx', () => {
       modifiedAt: nextModifiedAt(),
       deleted: false,
     }
-    await db.customRates.put(toPlain(record))
-    customRates.value = [...customRates.value.filter(c => c.id !== record.id), record]
-    useSyncStore().scheduleSync()
+    await table.write(record)
     return true
-  }
-
-  async function removeCustomRate (id: string): Promise<void> {
-    const existing = customRates.value.find(c => c.id === id)
-    if (!existing) {
-      return
-    }
-    await db.customRates.put(toPlain({ ...existing, deleted: true, modifiedAt: nextModifiedAt() }))
-    customRates.value = customRates.value.filter(c => c.id !== id)
-    useSyncStore().scheduleSync()
   }
 
   // For display: the stored EUR-relative custom rate expressed in the base.
@@ -140,7 +135,7 @@ export const useFxStore = defineStore('fx', () => {
     hydrate,
     refresh,
     upsertCustomRate,
-    removeCustomRate,
+    removeCustomRate: table.remove,
     customRateToBase,
   }
 })

@@ -65,9 +65,10 @@ Severity legend:
   All create paths are `async` with the button left enabled while awaiting; a double tap (common on mobile, the primary target) inserts two records.
   **Fix:** a `saving` ref driving `:disabled`/`:loading` on the buttons, and a short in-flight guard on `quickAdd`.
 
-- [ ] **11. Every data store duplicates the same tombstone-CRUD boilerplate** — `src/stores/expenses.ts`, `categories.ts`, `templates.ts`, `settings.ts` (income periods), `fx.ts` (custom rates)
+- [x] **11. Every data store duplicates the same tombstone-CRUD boilerplate** — `src/stores/expenses.ts`, `categories.ts`, `templates.ts`, `settings.ts` (income periods), `fx.ts` (custom rates)
   Five stores repeat hydrate-filter-deleted, add-with-uuid/modifiedAt, update-find-merge-put, remove-tombstone-put, plus `scheduleSync()` after each. That is ~150 duplicated lines where a bug fix (e.g. finding 9's transactional discipline, or a future `modifiedAt` change) must be applied five times.
   **Fix:** extract a small generic helper (e.g. `createSyncedTable<T>(table)` returning `hydrate/add/update/remove`) and compose stores from it.
+  _Fixed: `src/stores/syncedTable.ts` — `createSyncedTable<T>` owns hydrate/add/update/remove plus a `write` primitive (put + reactive-list update + `scheduleSync`, stamping `modifiedAt` via `nextModifiedAt`). Every store composes it: expenses/tags (build), categories/templates/income periods (build + custom hydrate/remove), and fx custom rates use `write`/`remove` for their upsert shape. Store-specific behaviour (expense snapshots, category/tag cascade deletes, template reorder, base-currency conversion) layers on top. Verified with the full suite including the sync e2e run against a live Etebase server (66 passing)._
 
 - [x] **12. LWW conflict resolution trusts unsynchronized device clocks** — `src/services/sync/engine.ts:14`, all stores' `modifiedAt: Date.now()`
   A device with a clock set hours ahead permanently wins every conflict, and `remoteModifiedAt <= local.modifiedAt` equality (`engine.ts:171`) treats an exact tie as "already applied". This is an accepted design tradeoff for this app class, but it deserves a documented mitigation (e.g. clamping `modifiedAt` to `max(Date.now(), lastKnown + 1)` monotonically per device).

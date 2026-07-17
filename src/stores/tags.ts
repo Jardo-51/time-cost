@@ -6,6 +6,7 @@ import { db } from '@/db'
 import { toPlain } from '@/db/plain'
 import { useExpensesStore } from '@/stores/expenses'
 import { useSyncStore } from '@/stores/sync'
+import { createSyncedTable } from '@/stores/syncedTable'
 import { useTemplatesStore } from '@/stores/templates'
 import { nextModifiedAt } from '@/utils/clock'
 
@@ -13,6 +14,12 @@ export type TagInput = Omit<Tag, keyof SyncFields>
 
 export const useTagsStore = defineStore('tags', () => {
   const tags = ref<Tag[]>([])
+
+  const table = createSyncedTable<Tag, TagInput>({
+    table: db.tags,
+    list: tags,
+    build: input => ({ ...input, name: input.name.trim(), id: crypto.randomUUID() }),
+  })
 
   const sorted = computed(() =>
     tags.value.toSorted((a, b) => a.name.localeCompare(b.name)),
@@ -27,35 +34,6 @@ export const useTagsStore = defineStore('tags', () => {
     return tags.value.find(t => t.name.toLowerCase() === needle)
   }
 
-  async function hydrate (): Promise<void> {
-    tags.value = (await db.tags.toArray()).filter(t => !t.deleted)
-  }
-
-  async function add (input: TagInput): Promise<Tag> {
-    const tag: Tag = {
-      ...input,
-      name: input.name.trim(),
-      id: crypto.randomUUID(),
-      modifiedAt: nextModifiedAt(),
-      deleted: false,
-    }
-    await db.tags.put(toPlain(tag))
-    tags.value = [...tags.value, tag]
-    useSyncStore().scheduleSync()
-    return tag
-  }
-
-  async function update (id: string, patch: Partial<TagInput>): Promise<void> {
-    const existing = tags.value.find(t => t.id === id)
-    if (!existing) {
-      return
-    }
-    const updated: Tag = { ...existing, ...patch, modifiedAt: nextModifiedAt() }
-    await db.tags.put(toPlain(updated))
-    tags.value = tags.value.map(t => (t.id === id ? updated : t))
-    useSyncStore().scheduleSync()
-  }
-
   // Resolves tag names (as typed in the expense form) to ids, creating
   // missing tags on the fly. Matching is case-insensitive; new tags get a
   // color cycled from the shared palette.
@@ -68,7 +46,7 @@ export const useTagsStore = defineStore('tags', () => {
       }
       const existing = byName(name)
       const tag = existing
-        ?? await add({ name, color: CATEGORY_COLORS[tags.value.length % CATEGORY_COLORS.length]! })
+        ?? await table.add({ name, color: CATEGORY_COLORS[tags.value.length % CATEGORY_COLORS.length]! })
       if (!ids.includes(tag.id)) {
         ids.push(tag.id)
       }
@@ -111,9 +89,9 @@ export const useTagsStore = defineStore('tags', () => {
     sorted,
     byId,
     byName,
-    hydrate,
-    add,
-    update,
+    hydrate: table.hydrate,
+    add: table.add,
+    update: table.update,
     ensureIds,
     remove,
   }

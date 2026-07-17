@@ -81,7 +81,14 @@
       <v-card-actions>
         <v-spacer />
         <v-btn variant="text" @click="isOpen = false">Cancel</v-btn>
-        <v-btn color="primary" :disabled="!isValid || saving" :loading="saving" variant="flat" @click="save">Save</v-btn>
+
+        <v-btn
+          color="primary"
+          :disabled="!isValid || saving"
+          :loading="saving"
+          variant="flat"
+          @click="save"
+        >Save</v-btn>
       </v-card-actions>
     </v-card>
   </v-dialog>
