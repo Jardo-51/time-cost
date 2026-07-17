@@ -36,9 +36,13 @@ jobs:
       # end-to-end tests" for the same sequence run locally.
       - name: Start Etebase server
         run: |
+          # Pinned by digest: the suite is now a required part of every green
+          # build, so an upstream push to `:alpine` could break CI with no
+          # commit of ours involved — and it'd read as a sync regression. Keep
+          # in step with the README's block when bumping.
           docker run -d --name etebase -p 3735:3735 \
             -e ALLOWED_HOSTS=localhost,127.0.0.1 \
-            victorrds/etesync:alpine
+            victorrds/etesync:alpine@sha256:47a35dd707ffecb5d92756255ad92d1c07ffa287cced44a81c89607c41e45bca
 
           # `docker run -d` returns once the container exists, not once it's
           # ready; wait for the entrypoint's migrations before touching the db,

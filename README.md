@@ -58,9 +58,11 @@ nix develop -c pnpm dev
 `pnpm test` includes an e2e suite for the sync engine that runs against a real local Etebase server and **self-skips** when none is reachable. To run it:
 
 ```bash
+# Pinned by digest to match the Build workflow, so a local run and CI test the
+# same image. Bump both together.
 docker run -d --name etebase -p 3735:3735 \
   -e ALLOWED_HOSTS=localhost,127.0.0.1 \
-  victorrds/etesync:alpine
+  victorrds/etesync:alpine@sha256:47a35dd707ffecb5d92756255ad92d1c07ffa287cced44a81c89607c41e45bca
 
 # `docker run -d` returns once the container exists, not once it's ready, so
 # wait for the entrypoint to finish migrating before touching the database —
