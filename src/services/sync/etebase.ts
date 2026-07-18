@@ -17,6 +17,19 @@ interface StoredSession {
 let account: Etebase.Account | null = null
 let collection: Etebase.Collection | null = null
 
+// Clears the per-collection sync state — the item mappings and the stoken — in
+// a single transaction. Both belong to one collection, so a crash between the
+// two writes must not leave cleared mappings beside a live stoken: a later pull
+// with that stale stoken would skip previously-seen items instead of rebuilding
+// their mappings. Every caller drops this state because the collection it
+// described is gone or changed (logout, a losing cache, a corrupt cache blob).
+async function clearSyncBookkeeping (): Promise<void> {
+  await db.transaction('rw', [db.syncItems, db.meta], async () => {
+    await db.syncItems.clear()
+    await deleteMeta(STOKEN_KEY)
+  })
+}
+
 export async function isEtebaseServer (serverUrl: string): Promise<boolean> {
   await Etebase.ready
   return Etebase.Account.isEtebaseServer(serverUrl)
@@ -79,8 +92,7 @@ export async function logout (): Promise<void> {
   collection = null
   await deleteMeta(SESSION_KEY)
   await deleteMeta(COLLECTION_KEY)
-  await deleteMeta(STOKEN_KEY)
-  await db.syncItems.clear()
+  await clearSyncBookkeeping()
 }
 
 export async function getCollection (): Promise<Etebase.Collection> {
@@ -94,20 +106,39 @@ export async function getCollection (): Promise<Etebase.Collection> {
 
   const cached = await getMeta<Uint8Array>(COLLECTION_KEY)
   if (cached) {
-    try {
-      collection = await reconcileCachedCollection(manager, manager.cacheLoad(cached))
+    const cachedCollection = await loadCachedCollection(manager, cached)
+    if (cachedCollection) {
+      collection = await reconcileCachedCollection(manager, cachedCollection)
       await setMeta(COLLECTION_KEY, manager.cacheSave(collection))
       return collection
-    } catch {
-      // `cacheLoad` failed (corrupt cache) — fall through to discovery. A list
-      // failure inside reconcile is swallowed there, so offline starts keep
-      // the cached collection rather than landing here and creating a new one.
     }
   }
 
   collection = await discoverOrCreateCollection(manager)
   await setMeta(COLLECTION_KEY, manager.cacheSave(collection))
   return collection
+}
+
+// Decodes the cached collection blob. On a corrupt blob the cached uid is
+// unreadable, so the surviving `syncItems` mappings and stoken can no longer be
+// tied to a collection: drop them and return undefined so the caller
+// re-discovers. A full re-sync is the safe recovery when the bookkeeping's
+// owner is unknown, and it avoids pushing items cached under the old collection
+// through a different collection's item manager (which would wedge sync). A list
+// failure inside the subsequent reconcile is swallowed there, so offline starts
+// keep the cached collection instead.
+// Exported for unit testing (see __tests__/reconcile.spec.ts); not part of the
+// module's public surface.
+export async function loadCachedCollection (
+  manager: Etebase.CollectionManager,
+  cached: Uint8Array,
+): Promise<Etebase.Collection | undefined> {
+  try {
+    return manager.cacheLoad(cached)
+  } catch {
+    await clearSyncBookkeeping()
+    return undefined
+  }
 }
 
 // The winner is the lowest-`uid` non-deleted collection, but the cache is
@@ -122,7 +153,9 @@ export async function getCollection (): Promise<Etebase.Collection> {
 // same run (mappings and stoken belong to the losing collection). A list
 // failure (offline) keeps the cached collection; sync needs the network anyway
 // and the next successful start reconciles.
-async function reconcileCachedCollection (
+// Exported for unit testing (see __tests__/reconcile.spec.ts); not part of the
+// module's public surface.
+export async function reconcileCachedCollection (
   manager: Etebase.CollectionManager,
   cached: Etebase.Collection,
 ): Promise<Etebase.Collection> {
@@ -135,8 +168,7 @@ async function reconcileCachedCollection (
   if (!winner || winner.uid === cached.uid) {
     return cached
   }
-  await db.syncItems.clear()
-  await deleteMeta(STOKEN_KEY)
+  await clearSyncBookkeeping()
   return winner
 }
 
@@ -184,7 +216,12 @@ async function listCollections (manager: Etebase.CollectionManager): Promise<Ete
   const { data } = await manager.list(COLLECTION_TYPE)
   return data
     .filter(c => !c.isDeleted)
-    .toSorted((a, b) => a.uid.localeCompare(b.uid))
+    // Compare by code unit, not `localeCompare`: the convergence rests on every
+    // device independently picking the *same* lowest uid, but ICU collations
+    // disagree between locales (a Danish `aa…` sorts after `z…`, case-first
+    // tie-breaking differs), so `localeCompare` could hand two differently
+    // configured devices different winners and silently re-split the account.
+    .toSorted((a, b) => (a.uid < b.uid ? -1 : (a.uid > b.uid ? 1 : 0)))
 }
 
 export function getItemManager (col: Etebase.Collection): Etebase.ItemManager {

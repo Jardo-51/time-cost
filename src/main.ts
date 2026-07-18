@@ -55,20 +55,33 @@ bootstrap().then(
   },
 )
 
+// Built with `createElement`/`textContent` rather than an `innerHTML` template:
+// `heading`/`message` are compile-time constants today, but going through the
+// DOM API keeps that from mattering — a future caller passing an
+// attacker-influenceable string (e.g. `error.message`) still can't inject markup.
 function renderErrorScreen (heading: string, message: string): void {
   const root = document.querySelector('#app')
   if (!root) {
     return
   }
-  root.innerHTML = `
-    <div style="max-width:32rem;margin:15vh auto;padding:0 1.5rem;font-family:Roboto,system-ui,sans-serif;text-align:center;color:#333">
-      <h1 style="font-size:1.4rem;margin-bottom:.75rem">${heading}</h1>
-      <p style="line-height:1.5;color:#666">${message}</p>
-      <button
-        type="button"
-        onclick="location.reload()"
-        style="margin-top:1.25rem;padding:.6rem 1.4rem;border:0;border-radius:.4rem;background:#1976D2;color:#fff;font-size:1rem;cursor:pointer"
-      >Reload</button>
-    </div>
-  `
+
+  const container = document.createElement('div')
+  container.style.cssText = 'max-width:32rem;margin:15vh auto;padding:0 1.5rem;font-family:Roboto,system-ui,sans-serif;text-align:center;color:#333'
+
+  const title = document.createElement('h1')
+  title.style.cssText = 'font-size:1.4rem;margin-bottom:.75rem'
+  title.textContent = heading
+
+  const body = document.createElement('p')
+  body.style.cssText = 'line-height:1.5;color:#666'
+  body.textContent = message
+
+  const button = document.createElement('button')
+  button.type = 'button'
+  button.style.cssText = 'margin-top:1.25rem;padding:.6rem 1.4rem;border:0;border-radius:.4rem;background:#1976D2;color:#fff;font-size:1rem;cursor:pointer'
+  button.textContent = 'Reload'
+  button.addEventListener('click', () => location.reload())
+
+  container.append(title, body, button)
+  root.replaceChildren(container)
 }
