@@ -128,6 +128,6 @@ Severity legend:
 
 ## Refactoring suggestions (beyond fixes above)
 
-- [ ] **29. Extract the shared "amount + currency select" and "category select" form fragments** — `ExpenseFormDialog.vue` and `TemplateFormDialog.vue` duplicate ~40 lines of identical Vuetify markup (currency select with subtitle slot, category select with avatar/selection slots). A `CurrencyAmountFields`/`CategorySelect` component pair would keep the two dialogs in lockstep. *(LOW)*
+- [x] **29. Extract the shared "amount + currency select" and "category select" form fragments** — `ExpenseFormDialog.vue` and `TemplateFormDialog.vue` duplicate ~40 lines of identical Vuetify markup (currency select with subtitle slot, category select with avatar/selection slots). A `CurrencyAmountFields`/`CategorySelect` component pair would keep the two dialogs in lockstep. *(LOW)*
 
 - [ ] **30. Consolidate duplicated snackbar-confirm patterns for destructive actions** — `CategoriesPage.vue`, `TemplatesPage.vue`, `IncomeSettingsCard.vue`, `FxSettingsCard.vue` each hand-roll delete flows; only categories get a confirm dialog and only expenses get undo. Consider one `useConfirm()`/undo pattern so income periods and templates aren't deleted irrevocably on a single mis-tap. *(LOW)*
