@@ -51,8 +51,12 @@ export async function syncOnce (): Promise<void> {
   const collection = await getCollection()
   const itemManager = getItemManager(collection)
   await pull(itemManager)
-  await push(itemManager)
-  await purgeOldTombstones()
+  // One pass over every table produces both the dirty set to push and the
+  // tombstone candidates to purge, so the push and cleanup phases don't each
+  // reload the whole database.
+  const { dirty, tombstones } = await collectDirty()
+  await push(itemManager, dirty)
+  await purgeOldTombstones(tombstones)
 }
 
 // ---------------------------------------------------------------- pull
@@ -248,11 +252,19 @@ interface DirtyRecord {
   modifiedAt: number
 }
 
-async function collectDirty (): Promise<DirtyRecord[]> {
+interface TombstoneRef {
+  entity: SyncEntity
+  localId: string
+  modifiedAt: number
+}
+
+async function collectDirty (): Promise<{ dirty: DirtyRecord[], tombstones: TombstoneRef[] }> {
   const mappings = new Map(
     (await db.syncItems.toArray()).map(m => [m.localId, m]),
   )
   const dirty: DirtyRecord[] = []
+  const tombstones: TombstoneRef[] = []
+  const cutoff = Date.now() - TOMBSTONE_TTL_MS
 
   for (const { entity, table } of TABLE_ENTITIES) {
     for (const record of await table.toArray()) {
@@ -265,6 +277,9 @@ async function collectDirty (): Promise<DirtyRecord[]> {
           deleted: record.deleted,
           modifiedAt: record.modifiedAt,
         })
+      }
+      if (record.deleted && record.modifiedAt < cutoff) {
+        tombstones.push({ entity, localId: record.id, modifiedAt: record.modifiedAt })
       }
     }
   }
@@ -282,11 +297,10 @@ async function collectDirty (): Promise<DirtyRecord[]> {
       })
     }
   }
-  return dirty
+  return { dirty, tombstones }
 }
 
-async function push (itemManager: Etebase.ItemManager): Promise<void> {
-  const dirty = await collectDirty()
+async function push (itemManager: Etebase.ItemManager, dirty: DirtyRecord[]): Promise<void> {
   if (dirty.length === 0) {
     return
   }
@@ -328,16 +342,11 @@ async function push (itemManager: Etebase.ItemManager): Promise<void> {
 // Hard-delete tombstones that were confirmed pushed more than 90 days ago.
 // The syncItems mapping is kept so the record cannot be resurrected by an
 // old remote revision.
-async function purgeOldTombstones (): Promise<void> {
-  const cutoff = Date.now() - TOMBSTONE_TTL_MS
-  for (const { table } of TABLE_ENTITIES) {
-    const stale = (await table.toArray())
-      .filter(r => r.deleted && r.modifiedAt < cutoff)
-    for (const record of stale) {
-      const mapping = await db.syncItems.get(record.id)
-      if (mapping && mapping.lastSyncedModifiedAt >= record.modifiedAt) {
-        await table.delete(record.id)
-      }
+async function purgeOldTombstones (tombstones: TombstoneRef[]): Promise<void> {
+  for (const { entity, localId, modifiedAt } of tombstones) {
+    const mapping = await db.syncItems.get(localId)
+    if (mapping && mapping.lastSyncedModifiedAt >= modifiedAt) {
+      await tableFor(entity)?.delete(localId)
     }
   }
 }

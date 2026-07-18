@@ -86,7 +86,7 @@ Severity legend:
   Each repaired expense rebuilds the whole `expenses.value` array via `.map`. Collect the updates, `bulkPut` once, and reassign the array once.
   _Folded into the fix for #3/#4: the function (now `resyncBaseSnapshots`) collects repairs into a map, `bulkPut`s once, and reassigns the array once._
 
-- [ ] **16. Every sync run loads all tables into memory twice** — `src/services/sync/engine.ts:218-237, 298-310`
+- [x] **16. Every sync run loads all tables into memory twice** — `src/services/sync/engine.ts:218-237, 298-310`
   `collectDirty` does `table.toArray()` for all five tables, and `purgeOldTombstones` does it again to filter a handful of tombstones. Fine at hundreds of records; wasteful at years of expense history. Use the `modifiedAt` index (`where('modifiedAt').above(...)` needs a per-table dirty watermark, or at least `filter` on a `deleted`-indexed query for the purge).
 
 - [x] **17. Template reassignment on category delete does a full-table `filter` scan** — `src/stores/categories.ts:72-74`
