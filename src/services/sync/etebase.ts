@@ -199,7 +199,7 @@ async function listCollections (manager: Etebase.CollectionManager): Promise<Ete
     // disagree between locales (a Danish `aa…` sorts after `z…`, case-first
     // tie-breaking differs), so `localeCompare` could hand two differently
     // configured devices different winners and silently re-split the account.
-    .toSorted((a, b) => (a.uid < b.uid ? -1 : a.uid > b.uid ? 1 : 0))
+    .toSorted((a, b) => (a.uid < b.uid ? -1 : (a.uid > b.uid ? 1 : 0)))
 }
 
 export function getItemManager (col: Etebase.Collection): Etebase.ItemManager {
