@@ -44,16 +44,20 @@ export const useTemplatesStore = defineStore('templates', () => {
       return
     }
     // Reorder in the deterministic sorted order, then renumber to a contiguous
-    // sequence. Swapping the two sortOrder values alone is a no-op when they are
-    // equal (a post-sync collision), so renumber instead of swap.
+    // sequence starting at 1, matching add()'s numbering. Swapping the two
+    // sortOrder values alone is a no-op when they are equal (a post-sync
+    // collision), so renumber instead of swap. Numbering from 1 keeps an
+    // already-contiguous (1..n) list at two updates per move rather than
+    // rewriting every row, which would needlessly dirty the whole table and
+    // widen the last-write-wins race to every template.
     const reordered = [...list]
     reordered.splice(target, 0, reordered.splice(index, 1)[0]!)
     const now = nextModifiedAt()
     const updates: ExpenseTemplate[] = []
     for (const [i, t] of reordered.entries()) {
-      // t still carries its old sortOrder here; i is its new position.
-      if (t.sortOrder !== i) {
-        updates.push({ ...t, sortOrder: i, modifiedAt: now })
+      // t still carries its old sortOrder here; i + 1 is its new 1-based position.
+      if (t.sortOrder !== i + 1) {
+        updates.push({ ...t, sortOrder: i + 1, modifiedAt: now })
       }
     }
     if (updates.length === 0) {
