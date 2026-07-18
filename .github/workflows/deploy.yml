@@ -47,5 +47,9 @@ jobs:
           echo "${{ secrets.DEPLOY_HOST_KEY }}" >> ~/.ssh/known_hosts
 
       - name: Deploy via rsync
+        # Deliberately no --delete: old hashed chunks are kept as a grace period
+        # so tabs/PWAs still referencing a previous build don't break mid-session.
+        # This means stale chunks accumulate over time; prune the target
+        # directory manually (or add a scheduled cleanup) if it grows unbounded.
         run: |
           rsync -crvz ./dist/ ${{ secrets.DEPLOY_URL }}

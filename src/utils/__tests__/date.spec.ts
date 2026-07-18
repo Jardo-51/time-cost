@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { parseISODate, periodRange, shiftAnchor, toISODate } from '../date'
+import { isValidISODate, parseISODate, periodRange, shiftAnchor, toISODate } from '../date'
 
 describe('periodRange', () => {
   it('returns a single day', () => {
@@ -55,5 +55,20 @@ describe('toISODate / parseISODate', () => {
   it('round-trips local dates', () => {
     expect(toISODate(parseISODate('2026-07-05'))).toBe('2026-07-05')
     expect(toISODate(parseISODate('2024-02-29'))).toBe('2024-02-29')
+  })
+})
+
+describe('isValidISODate', () => {
+  it('accepts real calendar dates', () => {
+    expect(isValidISODate('2026-07-05')).toBe(true)
+    expect(isValidISODate('2024-02-29')).toBe(true)
+  })
+
+  it('rejects impossible or malformed dates', () => {
+    expect(isValidISODate('2026-13-40')).toBe(false)
+    expect(isValidISODate('2026-02-30')).toBe(false)
+    expect(isValidISODate('2025-02-29')).toBe(false)
+    expect(isValidISODate('2026-7-5')).toBe(false)
+    expect(isValidISODate('not-a-date')).toBe(false)
   })
 })

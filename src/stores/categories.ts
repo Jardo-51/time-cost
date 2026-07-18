@@ -52,7 +52,8 @@ export const useCategoriesStore = defineStore('categories', () => {
         .equals(id)
         .modify({ categoryId: OTHER_CATEGORY_ID, modifiedAt: now })
       await db.templates
-        .filter(t => t.categoryId === id)
+        .where('categoryId')
+        .equals(id)
         .modify({ categoryId: OTHER_CATEGORY_ID, modifiedAt: now })
       await db.categories.put(toPlain({ ...existing, deleted: true, modifiedAt: now }))
     })

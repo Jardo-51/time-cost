@@ -48,6 +48,12 @@ export class TimeCostDB extends Dexie {
         template.tagIds ??= []
       }),
     )
+    // Index templates.categoryId so reassigning a deleted category's templates
+    // to "Other" uses an indexed lookup instead of a full-table filter scan,
+    // matching the indexed `where` the expenses table already uses.
+    this.version(4).stores({
+      templates: 'id, sortOrder, categoryId, modifiedAt',
+    })
   }
 }
 

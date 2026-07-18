@@ -11,52 +11,9 @@
           label="Name"
         />
 
-        <div class="d-flex ga-2">
-          <v-text-field
-            v-model="amount"
-            inputmode="decimal"
-            label="Amount"
-            min="0"
-            step="0.01"
-            type="number"
-          />
+        <CurrencyAmountFields v-model:amount="amount" v-model:currency="currency" />
 
-          <v-select
-            v-model="currency"
-            item-title="code"
-            item-value="code"
-            :items="fx.currencies"
-            label="Currency"
-            style="max-width: 130px"
-          >
-            <template #item="{ props: itemProps, item }">
-              <v-list-item v-bind="itemProps" :subtitle="item.name" />
-            </template>
-          </v-select>
-        </div>
-
-        <v-select
-          v-model="categoryId"
-          item-title="name"
-          item-value="id"
-          :items="categories.sorted"
-          label="Category"
-        >
-          <template #item="{ props: itemProps, item }">
-            <v-list-item v-bind="itemProps">
-              <template #prepend>
-                <v-avatar :color="item.color" size="32">
-                  <v-icon color="white" :icon="item.icon" size="18" />
-                </v-avatar>
-              </template>
-            </v-list-item>
-          </template>
-
-          <template #selection="{ item }">
-            <v-icon class="me-2" :color="item.color" :icon="item.icon" size="20" />
-            {{ item.name }}
-          </template>
-        </v-select>
+        <CategorySelect v-model="categoryId" />
 
         <v-combobox
           v-model="tagNames"
@@ -97,9 +54,9 @@
 <script lang="ts" setup>
   import type { ExpenseTemplate } from '@/types'
   import { computed, ref, watch } from 'vue'
+  import CategorySelect from '@/components/expenses/CategorySelect.vue'
+  import CurrencyAmountFields from '@/components/expenses/CurrencyAmountFields.vue'
   import { OTHER_CATEGORY_ID } from '@/constants/categories'
-  import { useCategoriesStore } from '@/stores/categories'
-  import { useFxStore } from '@/stores/fx'
   import { useSettingsStore } from '@/stores/settings'
   import { useTagsStore } from '@/stores/tags'
   import { useTemplatesStore } from '@/stores/templates'
@@ -111,9 +68,7 @@
   const isOpen = defineModel<boolean>({ default: false })
 
   const templates = useTemplatesStore()
-  const categories = useCategoriesStore()
   const settings = useSettingsStore()
-  const fx = useFxStore()
   const tags = useTagsStore()
 
   const name = ref('')

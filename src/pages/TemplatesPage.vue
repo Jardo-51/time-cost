@@ -1,10 +1,17 @@
 <template>
   <v-container class="pa-3">
     <div class="d-flex align-center mb-4">
-      <v-btn icon="mdi-arrow-left" variant="text" @click="router.back()" />
+      <v-btn aria-label="Back" icon="mdi-arrow-left" variant="text" @click="router.back()" />
       <h1 class="ms-2">Quick-add</h1>
       <v-spacer />
-      <v-btn color="primary" icon="mdi-plus" variant="tonal" @click="openAdd" />
+
+      <v-btn
+        aria-label="Add template"
+        color="primary"
+        icon="mdi-plus"
+        variant="tonal"
+        @click="openAdd"
+      />
     </div>
 
     <v-empty-state
@@ -38,6 +45,7 @@
 
           <template #append>
             <v-btn
+              :aria-label="`Move ${template.name} up`"
               :disabled="index === 0"
               icon="mdi-chevron-up"
               size="small"
@@ -46,6 +54,7 @@
             />
 
             <v-btn
+              :aria-label="`Move ${template.name} down`"
               :disabled="index === templates.sorted.length - 1"
               icon="mdi-chevron-down"
               size="small"
@@ -54,6 +63,7 @@
             />
 
             <v-btn
+              :aria-label="`Edit ${template.name}`"
               icon="mdi-pencil"
               size="small"
               variant="text"
@@ -61,6 +71,7 @@
             />
 
             <v-btn
+              :aria-label="`Delete ${template.name}`"
               icon="mdi-delete"
               size="small"
               variant="text"
@@ -80,6 +91,7 @@
   import { ref } from 'vue'
   import { useRouter } from 'vue-router'
   import TemplateFormDialog from '@/components/templates/TemplateFormDialog.vue'
+  import { useConfirm } from '@/composables/useConfirm'
   import { useAppStore } from '@/stores/app'
   import { useCategoriesStore } from '@/stores/categories'
   import { useTagsStore } from '@/stores/tags'
@@ -91,6 +103,7 @@
   const categories = useCategoriesStore()
   const tags = useTagsStore()
   const app = useAppStore()
+  const { confirm } = useConfirm()
 
   function subtitleFor (template: ExpenseTemplate): string {
     const hashtags = template.tagIds
@@ -116,6 +129,8 @@
   }
 
   async function remove (template: ExpenseTemplate): Promise<void> {
+    const ok = await confirm({ title: `Delete “${template.name}”?` })
+    if (!ok) return
     await templates.remove(template.id)
     app.showSnackbar(`${template.name} removed`)
   }

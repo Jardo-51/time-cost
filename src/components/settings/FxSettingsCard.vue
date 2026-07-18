@@ -26,6 +26,7 @@
         <v-spacer />
 
         <v-btn
+          aria-label="Refresh rates"
           icon="mdi-refresh"
           :loading="fx.refreshing"
           size="small"
@@ -64,6 +65,7 @@
         >
           <template #append>
             <v-btn
+              :aria-label="`Edit ${custom.code}`"
               icon="mdi-pencil"
               size="small"
               variant="text"
@@ -71,6 +73,7 @@
             />
 
             <v-btn
+              :aria-label="`Delete ${custom.code}`"
               icon="mdi-delete"
               size="small"
               variant="text"
@@ -118,6 +121,7 @@
 <script lang="ts" setup>
   import type { CustomRate } from '@/types'
   import { computed, ref } from 'vue'
+  import { useConfirm } from '@/composables/useConfirm'
   import { useAppStore } from '@/stores/app'
   import { useFxStore } from '@/stores/fx'
   import { useSettingsStore } from '@/stores/settings'
@@ -127,6 +131,7 @@
   const fx = useFxStore()
   const settings = useSettingsStore()
   const app = useAppStore()
+  const { confirm } = useConfirm()
 
   const dialogOpen = ref(false)
   const editing = ref<CustomRate | null>(null)
@@ -178,6 +183,11 @@
   }
 
   async function remove (custom: CustomRate): Promise<void> {
+    const ok = await confirm({
+      title: `Delete ${custom.code}?`,
+      message: 'Expenses in this currency will lose their conversion until you add it again.',
+    })
+    if (!ok) return
     await fx.removeCustomRate(custom.id)
     app.showSnackbar(`${custom.code} removed`)
   }

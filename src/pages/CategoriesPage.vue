@@ -1,10 +1,17 @@
 <template>
   <v-container class="pa-3">
     <div class="d-flex align-center mb-4">
-      <v-btn icon="mdi-arrow-left" variant="text" @click="router.back()" />
+      <v-btn aria-label="Back" icon="mdi-arrow-left" variant="text" @click="router.back()" />
       <h1 class="ms-2">Categories</h1>
       <v-spacer />
-      <v-btn color="primary" icon="mdi-plus" variant="tonal" @click="openAdd" />
+
+      <v-btn
+        aria-label="Add category"
+        color="primary"
+        icon="mdi-plus"
+        variant="tonal"
+        @click="openAdd"
+      />
     </div>
 
     <v-card>
@@ -22,6 +29,7 @@
 
           <template #append>
             <v-btn
+              :aria-label="`Edit ${category.name}`"
               icon="mdi-pencil"
               size="small"
               variant="text"
@@ -30,6 +38,7 @@
 
             <v-btn
               v-if="!category.isProtected"
+              :aria-label="`Delete ${category.name}`"
               icon="mdi-delete"
               size="small"
               variant="text"
@@ -41,22 +50,6 @@
     </v-card>
 
     <CategoryFormDialog v-model="dialogOpen" :category="editing" />
-
-    <v-dialog v-model="deleteDialogOpen" max-width="400">
-      <v-card>
-        <v-card-title>Delete “{{ deleting?.name }}”?</v-card-title>
-
-        <v-card-text>
-          Expenses and templates in this category will move to “Other”.
-        </v-card-text>
-
-        <v-card-actions>
-          <v-spacer />
-          <v-btn variant="text" @click="deleteDialogOpen = false">Cancel</v-btn>
-          <v-btn color="error" variant="flat" @click="doDelete">Delete</v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-dialog>
   </v-container>
 </template>
 
@@ -65,17 +58,17 @@
   import { ref } from 'vue'
   import { useRouter } from 'vue-router'
   import CategoryFormDialog from '@/components/categories/CategoryFormDialog.vue'
+  import { useConfirm } from '@/composables/useConfirm'
   import { useAppStore } from '@/stores/app'
   import { useCategoriesStore } from '@/stores/categories'
 
   const router = useRouter()
   const categories = useCategoriesStore()
   const app = useAppStore()
+  const { confirm } = useConfirm()
 
   const dialogOpen = ref(false)
   const editing = ref<Category | null>(null)
-  const deleteDialogOpen = ref(false)
-  const deleting = ref<Category | null>(null)
 
   function openAdd (): void {
     editing.value = null
@@ -87,17 +80,13 @@
     dialogOpen.value = true
   }
 
-  function confirmDelete (category: Category): void {
-    deleting.value = category
-    deleteDialogOpen.value = true
-  }
-
-  async function doDelete (): Promise<void> {
-    if (deleting.value) {
-      await categories.remove(deleting.value.id)
-      app.showSnackbar(`${deleting.value.name} deleted`)
-    }
-    deleteDialogOpen.value = false
-    deleting.value = null
+  async function confirmDelete (category: Category): Promise<void> {
+    const ok = await confirm({
+      title: `Delete “${category.name}”?`,
+      message: 'Expenses and templates in this category will move to “Other”.',
+    })
+    if (!ok) return
+    await categories.remove(category.id)
+    app.showSnackbar(`${category.name} deleted`)
   }
 </script>

@@ -8,6 +8,13 @@
     Header set Expires "0"
 </Files>
 
+# The app shell must always be revalidated; otherwise Apache heuristic caching
+# can pin a stale index.html on the first visit or an SW-bypassed fetch, leaving
+# the client pointing at hashed assets that no longer exist.
+<Files "index.html">
+    Header set Cache-Control "no-cache"
+</Files>
+
 # connect-src must allow the FX API and the user-configured Etebase server.
 # The Etebase hostname is unknown at build time, so a broad `https:` is required
 # in addition to the pinned FX origin.

@@ -79,46 +79,47 @@ Severity legend:
 
 ## LOW
 
-- [ ] **14. Date validity is only regex-checked, so impossible dates like `2026-13-40` are storable** — `src/components/expenses/ExpenseFormDialog.vue:146`
+- [x] **14. Date validity is only regex-checked, so impossible dates like `2026-13-40` are storable** — `src/components/expenses/ExpenseFormDialog.vue:146`
   `/^\d{4}-\d{2}-\d{2}$/` accepts non-existent calendar dates. Native `type="date"` inputs usually prevent this, but not every browser/platform does. Such a date sorts oddly and never matches any stats bucket. Validate via `toISODate(parseISODate(v)) === v` round-trip.
 
 - [x] **15. `backfillBaseAmounts` is O(n²) and triggers reactivity per repaired expense** — `src/stores/expenses.ts:88-108`
   Each repaired expense rebuilds the whole `expenses.value` array via `.map`. Collect the updates, `bulkPut` once, and reassign the array once.
   _Folded into the fix for #3/#4: the function (now `resyncBaseSnapshots`) collects repairs into a map, `bulkPut`s once, and reassigns the array once._
 
-- [ ] **16. Every sync run loads all tables into memory twice** — `src/services/sync/engine.ts:218-237, 298-310`
+- [x] **16. Every sync run loads all tables into memory twice** — `src/services/sync/engine.ts:218-237, 298-310`
   `collectDirty` does `table.toArray()` for all five tables, and `purgeOldTombstones` does it again to filter a handful of tombstones. Fine at hundreds of records; wasteful at years of expense history. Use the `modifiedAt` index (`where('modifiedAt').above(...)` needs a per-table dirty watermark, or at least `filter` on a `deleted`-indexed query for the purge).
 
-- [ ] **17. Template reassignment on category delete does a full-table `filter` scan** — `src/stores/categories.ts:72-74`
+- [x] **17. Template reassignment on category delete does a full-table `filter` scan** — `src/stores/categories.ts:72-74`
   `db.templates` has no `categoryId` index (`src/db/index.ts:29`), so the code falls back to `.filter()`. Either add the index in a `version(2)` block or (given template counts are tiny) leave it but note why `filter` is used, unlike the indexed `where` used for expenses two lines above.
 
-- [ ] **18. Concurrent template creation on two devices produces duplicate `sortOrder`s, making `move()` a no-op** — `src/stores/templates.ts:22-34, 57-71`
+- [x] **18. Concurrent template creation on two devices produces duplicate `sortOrder`s, making `move()` a no-op** — `src/stores/templates.ts:22-34, 57-71`
   Both devices compute `maxOrder + 1` independently; after sync two templates share a `sortOrder`, so the swap in `move()` exchanges equal values and the order becomes unstable (secondary sort is undefined). Consider tie-breaking sorts by `id` and renumbering on collision.
 
-- [ ] **19. Dark mode ignores `prefers-color-scheme` and flashes light theme at startup** — `src/stores/app.ts:8`, `src/plugins/vuetify.ts:6-8`
+- [x] **19. Dark mode ignores `prefers-color-scheme` and flashes light theme at startup** — `src/stores/app.ts:8`, `src/plugins/vuetify.ts:6-8`
   First-time users get light mode regardless of OS preference, and returning dark-mode users see a light flash until `App.vue`'s watcher runs. Default from `window.matchMedia('(prefers-color-scheme: dark)')` when localStorage is empty, and consider setting the initial Vuetify theme before mount.
 
-- [ ] **20. `lastCurrency` from localStorage is not validated against available currencies** — `src/components/expenses/ExpenseFormDialog.vue:133`
+- [x] **20. `lastCurrency` from localStorage is not validated against available currencies** — `src/components/expenses/ExpenseFormDialog.vue:133`
   If the remembered currency was a custom rate that has since been removed, the form silently preselects a currency with no rate: the preview shows "no exchange rate yet" and the saved expense gets `baseAmount: null`. Fall back to `settings.baseCurrency` when the code is not in `fx.currencies`. Also note the inconsistency: this and `darkMode` live in localStorage while every other setting lives in the Dexie `meta` table.
 
-- [ ] **21. Icon-only buttons lack accessible labels** — throughout (e.g. `src/pages/CategoriesPage.vue:24-37`, `src/pages/TemplatesPage.vue:40-68`, `src/components/stats/PeriodPicker.vue:20-34`, the FAB in `src/pages/HomePage.vue:40-46`)
+- [x] **21. Icon-only buttons lack accessible labels** — throughout (e.g. `src/pages/CategoriesPage.vue:24-37`, `src/pages/TemplatesPage.vue:40-68`, `src/components/stats/PeriodPicker.vue:20-34`, the FAB in `src/pages/HomePage.vue:40-46`)
   Screen readers announce nothing useful for `icon="mdi-pencil"` buttons. Add `aria-label` (Vuetify passes it through) to edit/delete/move/navigation icon buttons.
 
-- [ ] **22. `workbox-window` appears to be an unused dependency** — `package.json:28`
+- [x] **22. `workbox-window` appears to be an unused dependency** — `package.json:28`
   Nothing in `src/` imports it or the `virtual:pwa-register` module; `vite-plugin-pwa`'s auto-injected `registerSW.js` doesn't need it. Remove it (or switch to `useRegisterSW` for a proper "update available" prompt, which would then justify it).
 
-- [ ] **23. `define: { 'process.env': {} }` is template leftover** — `vite.config.mts:93`
+- [x] **23. `define: { 'process.env': {} }` is template leftover** — `vite.config.mts:93`
   Nothing in the app reads `process.env` at runtime. Shims like this can mask real misconfigurations in dependencies; remove unless a dependency demonstrably needs it.
 
-- [ ] **24. `src/styles/settings.scss` is dead boilerplate** — the file is only comments, yet it is wired into `vite-plugin-vuetify` (`vite.config.mts:16`), which forces the slower `configFile` style pipeline. Either use it or drop the `styles.configFile` option and the file.
+- [x] **24. `src/styles/settings.scss` is dead boilerplate** — the file is only comments, yet it is wired into `vite-plugin-vuetify` (`vite.config.mts:16`), which forces the slower `configFile` style pipeline. Either use it or drop the `styles.configFile` option and the file.
 
-- [ ] **25. README e2e credentials don't match the test defaults** — `README.md:61-64` vs `src/services/sync/__tests__/engine.e2e.spec.ts:42-43`
+- [x] **25. README e2e credentials don't match the test defaults** — `README.md:61-64` vs `src/services/sync/__tests__/engine.e2e.spec.ts:42-43`
   README starts the container with `SUPER_PASS=adminpass123`, while the test defaults to `test-password-123` (as the *Etebase* account password set during the signup handshake, distinct from the Django password). This works but is non-obvious; document `ETEBASE_TEST_USER`/`ETEBASE_TEST_PASSWORD` next to the docker command so the relationship is clear.
+  _Not applicable: already resolved (folded into the #7 CI work). The README now runs `createsuperuser` with `DJANGO_SUPERUSER_PASSWORD='test-password-123'` — matching the test default `admin` / `test-password-123` — and explicitly documents the `ETEBASE_TEST_USER` / `ETEBASE_TEST_PASSWORD` / `ETEBASE_URL` overrides right beside the docker command (README.md:82-83). The `SUPER_PASS=adminpass123` mismatch the finding describes no longer exists._
 
-- [ ] **26. `index.html` has no explicit `Cache-Control` header** — `public/.htaccess`
+- [x] **26. `index.html` has no explicit `Cache-Control` header** — `public/.htaccess`
   Hashed assets are `immutable` and `sw.js` is `no-cache`, but `index.html` falls back to Apache heuristic caching. The service worker mostly hides this after install, but the first visit / SW-bypassed fetches can pin a stale shell. Add `Cache-Control: no-cache` for `index.html`.
 
-- [ ] **27. Deploy rsync never prunes old releases** — `.github/workflows/deploy.yml:51`
+- [x] **27. Deploy rsync never prunes old releases** — `.github/workflows/deploy.yml:51`
   Without `--delete`, hashed chunks accumulate forever on the server. Keeping a grace period is actually good for PWAs (open tabs referencing old chunks), but unbounded growth isn't; consider `--delete` plus a scheduled cleanup, or document the retention decision.
 
 - [x] **28. Stats page computes `workSecondsFor`/`baseAmountOf` twice per expense** — `src/pages/StatsPage.vue:62-112`
@@ -127,6 +128,6 @@ Severity legend:
 
 ## Refactoring suggestions (beyond fixes above)
 
-- [ ] **29. Extract the shared "amount + currency select" and "category select" form fragments** — `ExpenseFormDialog.vue` and `TemplateFormDialog.vue` duplicate ~40 lines of identical Vuetify markup (currency select with subtitle slot, category select with avatar/selection slots). A `CurrencyAmountFields`/`CategorySelect` component pair would keep the two dialogs in lockstep. *(LOW)*
+- [x] **29. Extract the shared "amount + currency select" and "category select" form fragments** — `ExpenseFormDialog.vue` and `TemplateFormDialog.vue` duplicate ~40 lines of identical Vuetify markup (currency select with subtitle slot, category select with avatar/selection slots). A `CurrencyAmountFields`/`CategorySelect` component pair would keep the two dialogs in lockstep. *(LOW)*
 
-- [ ] **30. Consolidate duplicated snackbar-confirm patterns for destructive actions** — `CategoriesPage.vue`, `TemplatesPage.vue`, `IncomeSettingsCard.vue`, `FxSettingsCard.vue` each hand-roll delete flows; only categories get a confirm dialog and only expenses get undo. Consider one `useConfirm()`/undo pattern so income periods and templates aren't deleted irrevocably on a single mis-tap. *(LOW)*
+- [x] **30. Consolidate duplicated snackbar-confirm patterns for destructive actions** — `CategoriesPage.vue`, `TemplatesPage.vue`, `IncomeSettingsCard.vue`, `FxSettingsCard.vue` each hand-roll delete flows; only categories get a confirm dialog and only expenses get undo. Consider one `useConfirm()`/undo pattern so income periods and templates aren't deleted irrevocably on a single mis-tap. *(LOW)*

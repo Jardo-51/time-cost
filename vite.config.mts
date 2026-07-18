@@ -12,9 +12,6 @@ export default defineConfig({
     }),
     Vuetify({
       autoImport: true,
-      styles: {
-        configFile: 'src/styles/settings.scss',
-      },
     }),
     Fonts({
       fontsource: {
@@ -90,7 +87,6 @@ export default defineConfig({
       },
     },
   ],
-  define: { 'process.env': {} },
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('src', import.meta.url)),

@@ -38,6 +38,7 @@
     <ExpenseList v-else :expenses="expenses.expenses" @edit="openEdit" />
 
     <v-btn
+      aria-label="Add expense"
       class="fab"
       color="primary"
       icon="mdi-plus"
