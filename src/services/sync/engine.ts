@@ -105,7 +105,15 @@ async function applyRemoteItem (
     ? payload.data.modifiedAt
     : (typeof meta.mtime === 'number' ? meta.mtime : Date.now())
   // Keep the local clock from later minting an edit behind a remote revision
-  // it has already seen — LWW would silently discard such an edit.
+  // it has already seen — LWW would silently discard such an edit. Downside of
+  // this Lamport-style advance: a far-future timestamp from a skewed device
+  // drags this clock permanently forward, so subsequent local edits are minted
+  // at `skewed + 1` and the skew propagates account-wide, outliving a fix to
+  // the misconfigured device. It also defers purgeOldTombstones — its
+  // `modifiedAt < Date.now() - TTL` check won't purge future-dated tombstones
+  // until the wall clock catches up. Accepted rather than capped: a cap would
+  // let a local edit be minted below a genuine remote value and then be
+  // silently discarded by LWW — the exact loss this observe call prevents.
   observeModifiedAt(remoteModifiedAt)
 
   let entity = payload?.entity ?? null
