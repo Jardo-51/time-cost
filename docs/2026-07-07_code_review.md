@@ -95,7 +95,7 @@ Severity legend:
 - [x] **18. Concurrent template creation on two devices produces duplicate `sortOrder`s, making `move()` a no-op** — `src/stores/templates.ts:22-34, 57-71`
   Both devices compute `maxOrder + 1` independently; after sync two templates share a `sortOrder`, so the swap in `move()` exchanges equal values and the order becomes unstable (secondary sort is undefined). Consider tie-breaking sorts by `id` and renumbering on collision.
 
-- [ ] **19. Dark mode ignores `prefers-color-scheme` and flashes light theme at startup** — `src/stores/app.ts:8`, `src/plugins/vuetify.ts:6-8`
+- [x] **19. Dark mode ignores `prefers-color-scheme` and flashes light theme at startup** — `src/stores/app.ts:8`, `src/plugins/vuetify.ts:6-8`
   First-time users get light mode regardless of OS preference, and returning dark-mode users see a light flash until `App.vue`'s watcher runs. Default from `window.matchMedia('(prefers-color-scheme: dark)')` when localStorage is empty, and consider setting the initial Vuetify theme before mount.
 
 - [ ] **20. `lastCurrency` from localStorage is not validated against available currencies** — `src/components/expenses/ExpenseFormDialog.vue:133`

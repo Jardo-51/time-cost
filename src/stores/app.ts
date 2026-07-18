@@ -1,11 +1,12 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
+import { initialDarkMode } from '@/utils/theme'
 
 export const useAppStore = defineStore('app', () => {
   const snackbar = ref(false)
   const snackbarText = ref('')
   const snackbarColor = ref('success')
-  const darkMode = ref(localStorage.getItem('darkMode') === 'true')
+  const darkMode = ref(initialDarkMode())
 
   function showSnackbar (text: string, color = 'success') {
     snackbarText.value = text
