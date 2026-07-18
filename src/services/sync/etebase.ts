@@ -132,7 +132,9 @@ export async function getCollection (): Promise<Etebase.Collection> {
 // same run (mappings and stoken belong to the losing collection). A list
 // failure (offline) keeps the cached collection; sync needs the network anyway
 // and the next successful start reconciles.
-async function reconcileCachedCollection (
+// Exported for unit testing (see __tests__/reconcile.spec.ts); not part of the
+// module's public surface.
+export async function reconcileCachedCollection (
   manager: Etebase.CollectionManager,
   cached: Etebase.Collection,
 ): Promise<Etebase.Collection> {
