@@ -17,6 +17,19 @@ interface StoredSession {
 let account: Etebase.Account | null = null
 let collection: Etebase.Collection | null = null
 
+// Clears the per-collection sync state — the item mappings and the stoken — in
+// a single transaction. Both belong to one collection, so a crash between the
+// two writes must not leave cleared mappings beside a live stoken: a later pull
+// with that stale stoken would skip previously-seen items instead of rebuilding
+// their mappings. Every caller drops this state because the collection it
+// described is gone or changed (logout, a losing cache, a corrupt cache blob).
+async function clearSyncBookkeeping (): Promise<void> {
+  await db.transaction('rw', [db.syncItems, db.meta], async () => {
+    await db.syncItems.clear()
+    await deleteMeta(STOKEN_KEY)
+  })
+}
+
 export async function isEtebaseServer (serverUrl: string): Promise<boolean> {
   await Etebase.ready
   return Etebase.Account.isEtebaseServer(serverUrl)
@@ -79,8 +92,7 @@ export async function logout (): Promise<void> {
   collection = null
   await deleteMeta(SESSION_KEY)
   await deleteMeta(COLLECTION_KEY)
-  await deleteMeta(STOKEN_KEY)
-  await db.syncItems.clear()
+  await clearSyncBookkeeping()
 }
 
 export async function getCollection (): Promise<Etebase.Collection> {
@@ -124,8 +136,7 @@ export async function loadCachedCollection (
   try {
     return manager.cacheLoad(cached)
   } catch {
-    await db.syncItems.clear()
-    await deleteMeta(STOKEN_KEY)
+    await clearSyncBookkeeping()
     return undefined
   }
 }
@@ -157,8 +168,7 @@ export async function reconcileCachedCollection (
   if (!winner || winner.uid === cached.uid) {
     return cached
   }
-  await db.syncItems.clear()
-  await deleteMeta(STOKEN_KEY)
+  await clearSyncBookkeeping()
   return winner
 }
 
