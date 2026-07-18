@@ -104,13 +104,13 @@ Severity legend:
 - [ ] **21. Icon-only buttons lack accessible labels** — throughout (e.g. `src/pages/CategoriesPage.vue:24-37`, `src/pages/TemplatesPage.vue:40-68`, `src/components/stats/PeriodPicker.vue:20-34`, the FAB in `src/pages/HomePage.vue:40-46`)
   Screen readers announce nothing useful for `icon="mdi-pencil"` buttons. Add `aria-label` (Vuetify passes it through) to edit/delete/move/navigation icon buttons.
 
-- [ ] **22. `workbox-window` appears to be an unused dependency** — `package.json:28`
+- [x] **22. `workbox-window` appears to be an unused dependency** — `package.json:28`
   Nothing in `src/` imports it or the `virtual:pwa-register` module; `vite-plugin-pwa`'s auto-injected `registerSW.js` doesn't need it. Remove it (or switch to `useRegisterSW` for a proper "update available" prompt, which would then justify it).
 
-- [ ] **23. `define: { 'process.env': {} }` is template leftover** — `vite.config.mts:93`
+- [x] **23. `define: { 'process.env': {} }` is template leftover** — `vite.config.mts:93`
   Nothing in the app reads `process.env` at runtime. Shims like this can mask real misconfigurations in dependencies; remove unless a dependency demonstrably needs it.
 
-- [ ] **24. `src/styles/settings.scss` is dead boilerplate** — the file is only comments, yet it is wired into `vite-plugin-vuetify` (`vite.config.mts:16`), which forces the slower `configFile` style pipeline. Either use it or drop the `styles.configFile` option and the file.
+- [x] **24. `src/styles/settings.scss` is dead boilerplate** — the file is only comments, yet it is wired into `vite-plugin-vuetify` (`vite.config.mts:16`), which forces the slower `configFile` style pipeline. Either use it or drop the `styles.configFile` option and the file.
 
 - [ ] **25. README e2e credentials don't match the test defaults** — `README.md:61-64` vs `src/services/sync/__tests__/engine.e2e.spec.ts:42-43`
   README starts the container with `SUPER_PASS=adminpass123`, while the test defaults to `test-password-123` (as the *Etebase* account password set during the signup handshake, distinct from the Django password). This works but is non-obvious; document `ETEBASE_TEST_USER`/`ETEBASE_TEST_PASSWORD` next to the docker command so the relationship is clear.
