@@ -28,22 +28,40 @@ export const useTemplatesStore = defineStore('templates', () => {
   })
 
   const sorted = computed(() =>
-    templates.value.toSorted((a: ExpenseTemplate, b: ExpenseTemplate) => a.sortOrder - b.sortOrder),
+    // Tie-break on id: two templates created concurrently on different devices
+    // can sync in sharing a sortOrder, and a bare numeric sort would leave their
+    // relative order undefined (and move() below unable to separate them).
+    templates.value.toSorted((a: ExpenseTemplate, b: ExpenseTemplate) =>
+      a.sortOrder - b.sortOrder || a.id.localeCompare(b.id),
+    ),
   )
 
   async function move (id: string, direction: -1 | 1): Promise<void> {
     const list = sorted.value
     const index = list.findIndex((t: ExpenseTemplate) => t.id === id)
-    const other = list[index + direction]
-    if (index === -1 || !other) {
+    const target = index + direction
+    if (index === -1 || target < 0 || target >= list.length) {
       return
     }
-    const current = list[index]!
+    // Reorder in the deterministic sorted order, then renumber to a contiguous
+    // sequence. Swapping the two sortOrder values alone is a no-op when they are
+    // equal (a post-sync collision), so renumber instead of swap.
+    const reordered = [...list]
+    reordered.splice(target, 0, reordered.splice(index, 1)[0]!)
     const now = nextModifiedAt()
-    const a: ExpenseTemplate = { ...current, sortOrder: other.sortOrder, modifiedAt: now }
-    const b: ExpenseTemplate = { ...other, sortOrder: current.sortOrder, modifiedAt: now }
-    await db.templates.bulkPut(toPlain([a, b]))
-    templates.value = templates.value.map(t => (t.id === a.id ? a : (t.id === b.id ? b : t)))
+    const updates: ExpenseTemplate[] = []
+    reordered.forEach((t, i) => {
+      // t still carries its old sortOrder here; i is its new position.
+      if (t.sortOrder !== i) {
+        updates.push({ ...t, sortOrder: i, modifiedAt: now })
+      }
+    })
+    if (updates.length === 0) {
+      return
+    }
+    await db.templates.bulkPut(toPlain(updates))
+    const updated = new Map(updates.map(t => [t.id, t]))
+    templates.value = templates.value.map(t => updated.get(t.id) ?? t)
     useSyncStore().scheduleSync()
   }
 

@@ -92,7 +92,7 @@ Severity legend:
 - [ ] **17. Template reassignment on category delete does a full-table `filter` scan** — `src/stores/categories.ts:72-74`
   `db.templates` has no `categoryId` index (`src/db/index.ts:29`), so the code falls back to `.filter()`. Either add the index in a `version(2)` block or (given template counts are tiny) leave it but note why `filter` is used, unlike the indexed `where` used for expenses two lines above.
 
-- [ ] **18. Concurrent template creation on two devices produces duplicate `sortOrder`s, making `move()` a no-op** — `src/stores/templates.ts:22-34, 57-71`
+- [x] **18. Concurrent template creation on two devices produces duplicate `sortOrder`s, making `move()` a no-op** — `src/stores/templates.ts:22-34, 57-71`
   Both devices compute `maxOrder + 1` independently; after sync two templates share a `sortOrder`, so the swap in `move()` exchanges equal values and the order becomes unstable (secondary sort is undefined). Consider tie-breaking sorts by `id` and renumbering on collision.
 
 - [ ] **19. Dark mode ignores `prefers-color-scheme` and flashes light theme at startup** — `src/stores/app.ts:8`, `src/plugins/vuetify.ts:6-8`
