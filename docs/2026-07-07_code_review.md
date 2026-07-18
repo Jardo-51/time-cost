@@ -98,7 +98,7 @@ Severity legend:
 - [x] **19. Dark mode ignores `prefers-color-scheme` and flashes light theme at startup** — `src/stores/app.ts:8`, `src/plugins/vuetify.ts:6-8`
   First-time users get light mode regardless of OS preference, and returning dark-mode users see a light flash until `App.vue`'s watcher runs. Default from `window.matchMedia('(prefers-color-scheme: dark)')` when localStorage is empty, and consider setting the initial Vuetify theme before mount.
 
-- [ ] **20. `lastCurrency` from localStorage is not validated against available currencies** — `src/components/expenses/ExpenseFormDialog.vue:133`
+- [x] **20. `lastCurrency` from localStorage is not validated against available currencies** — `src/components/expenses/ExpenseFormDialog.vue:133`
   If the remembered currency was a custom rate that has since been removed, the form silently preselects a currency with no rate: the preview shows "no exchange rate yet" and the saved expense gets `baseAmount: null`. Fall back to `settings.baseCurrency` when the code is not in `fx.currencies`. Also note the inconsistency: this and `darkMode` live in localStorage while every other setting lives in the Dexie `meta` table.
 
 - [ ] **21. Icon-only buttons lack accessible labels** — throughout (e.g. `src/pages/CategoriesPage.vue:24-37`, `src/pages/TemplatesPage.vue:40-68`, `src/components/stats/PeriodPicker.vue:20-34`, the FAB in `src/pages/HomePage.vue:40-46`)

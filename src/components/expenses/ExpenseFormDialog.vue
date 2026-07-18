@@ -163,7 +163,13 @@
       date.value = props.expense.date
     } else {
       amount.value = ''
-      currency.value = localStorage.getItem('lastCurrency') ?? settings.baseCurrency
+      // The remembered currency may have been a custom rate that was since
+      // removed; fall back to the base currency so we never preselect a code
+      // with no rate (which would silently save baseAmount: null).
+      const remembered = localStorage.getItem('lastCurrency')
+      currency.value = remembered && fx.currencies.some(c => c.code === remembered)
+        ? remembered
+        : settings.baseCurrency
       description.value = ''
       categoryId.value = OTHER_CATEGORY_ID
       tagNames.value = []
