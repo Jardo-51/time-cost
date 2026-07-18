@@ -94,14 +94,24 @@ export async function getCollection (): Promise<Etebase.Collection> {
 
   const cached = await getMeta<Uint8Array>(COLLECTION_KEY)
   if (cached) {
+    let cachedCollection: Etebase.Collection | undefined
     try {
-      collection = await reconcileCachedCollection(manager, manager.cacheLoad(cached))
+      cachedCollection = manager.cacheLoad(cached)
+    } catch {
+      // Corrupt cached blob — the cached uid is unreadable, so the surviving
+      // `syncItems` mappings and stoken can no longer be tied to a collection.
+      // Drop them before re-discovering: a full re-sync is the safe recovery
+      // when the bookkeeping's owner is unknown, and it avoids pushing items
+      // cached under the old collection through a different collection's item
+      // manager (which would wedge sync). A list failure inside reconcile is
+      // swallowed there, so offline starts keep the cached collection instead.
+      await db.syncItems.clear()
+      await deleteMeta(STOKEN_KEY)
+    }
+    if (cachedCollection) {
+      collection = await reconcileCachedCollection(manager, cachedCollection)
       await setMeta(COLLECTION_KEY, manager.cacheSave(collection))
       return collection
-    } catch {
-      // `cacheLoad` failed (corrupt cache) — fall through to discovery. A list
-      // failure inside reconcile is swallowed there, so offline starts keep
-      // the cached collection rather than landing here and creating a new one.
     }
   }
 
