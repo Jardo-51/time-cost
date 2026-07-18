@@ -6,7 +6,7 @@ import type { SyncItemMap } from '@/types'
 import type * as Etebase from 'etebase'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { db, getMeta, setMeta } from '@/db'
-import { reconcileCachedCollection } from '@/services/sync/etebase'
+import { loadCachedCollection, reconcileCachedCollection } from '@/services/sync/etebase'
 
 const STOKEN_KEY = 'etebase.stoken'
 
@@ -23,6 +23,19 @@ function stubManager (result: Etebase.Collection[] | Error): Etebase.CollectionM
         throw result
       }
       return { data: result }
+    }),
+  } as unknown as Etebase.CollectionManager
+}
+
+// A CollectionManager whose only exercised method is `cacheLoad`. Pass a
+// collection to decode it, or an Error to simulate a corrupt cached blob.
+function stubCacheManager (result: Etebase.Collection | Error): Etebase.CollectionManager {
+  return {
+    cacheLoad: vi.fn(() => {
+      if (result instanceof Error) {
+        throw result
+      }
+      return result
     }),
   } as unknown as Etebase.CollectionManager
 }
@@ -96,5 +109,33 @@ describe('reconcileCachedCollection', () => {
     expect(result.uid).toBe('col-b')
     expect(await db.syncItems.count()).toBe(2)
     expect(await getMeta(STOKEN_KEY)).toBe('stoken-of-cached-collection')
+  })
+})
+
+describe('loadCachedCollection', () => {
+  it('decodes the cached blob and keeps bookkeeping intact', async () => {
+    await seedBookkeeping()
+    const manager = stubCacheManager(collection('col-a'))
+
+    const result = await loadCachedCollection(manager, new Uint8Array([1, 2, 3]))
+
+    expect(result?.uid).toBe('col-a')
+    // A readable cache leaves the collection's mappings and stoken untouched.
+    expect(await db.syncItems.count()).toBe(2)
+    expect(await getMeta(STOKEN_KEY)).toBe('stoken-of-cached-collection')
+  })
+
+  it('clears orphaned bookkeeping and returns undefined on a corrupt blob', async () => {
+    await seedBookkeeping()
+    const manager = stubCacheManager(new Error('corrupt cache'))
+
+    const result = await loadCachedCollection(manager, new Uint8Array([1, 2, 3]))
+
+    // The cached uid is unreadable, so the surviving mappings and stoken can no
+    // longer be tied to a collection — both are dropped so the caller re-syncs
+    // from scratch against the re-discovered collection.
+    expect(result).toBeUndefined()
+    expect(await db.syncItems.count()).toBe(0)
+    expect(await getMeta(STOKEN_KEY)).toBeUndefined()
   })
 })

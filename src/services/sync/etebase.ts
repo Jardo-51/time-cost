@@ -94,20 +94,7 @@ export async function getCollection (): Promise<Etebase.Collection> {
 
   const cached = await getMeta<Uint8Array>(COLLECTION_KEY)
   if (cached) {
-    let cachedCollection: Etebase.Collection | undefined
-    try {
-      cachedCollection = manager.cacheLoad(cached)
-    } catch {
-      // Corrupt cached blob — the cached uid is unreadable, so the surviving
-      // `syncItems` mappings and stoken can no longer be tied to a collection.
-      // Drop them before re-discovering: a full re-sync is the safe recovery
-      // when the bookkeeping's owner is unknown, and it avoids pushing items
-      // cached under the old collection through a different collection's item
-      // manager (which would wedge sync). A list failure inside reconcile is
-      // swallowed there, so offline starts keep the cached collection instead.
-      await db.syncItems.clear()
-      await deleteMeta(STOKEN_KEY)
-    }
+    const cachedCollection = await loadCachedCollection(manager, cached)
     if (cachedCollection) {
       collection = await reconcileCachedCollection(manager, cachedCollection)
       await setMeta(COLLECTION_KEY, manager.cacheSave(collection))
@@ -118,6 +105,29 @@ export async function getCollection (): Promise<Etebase.Collection> {
   collection = await discoverOrCreateCollection(manager)
   await setMeta(COLLECTION_KEY, manager.cacheSave(collection))
   return collection
+}
+
+// Decodes the cached collection blob. On a corrupt blob the cached uid is
+// unreadable, so the surviving `syncItems` mappings and stoken can no longer be
+// tied to a collection: drop them and return undefined so the caller
+// re-discovers. A full re-sync is the safe recovery when the bookkeeping's
+// owner is unknown, and it avoids pushing items cached under the old collection
+// through a different collection's item manager (which would wedge sync). A list
+// failure inside the subsequent reconcile is swallowed there, so offline starts
+// keep the cached collection instead.
+// Exported for unit testing (see __tests__/reconcile.spec.ts); not part of the
+// module's public surface.
+export async function loadCachedCollection (
+  manager: Etebase.CollectionManager,
+  cached: Uint8Array,
+): Promise<Etebase.Collection | undefined> {
+  try {
+    return manager.cacheLoad(cached)
+  } catch {
+    await db.syncItems.clear()
+    await deleteMeta(STOKEN_KEY)
+    return undefined
+  }
 }
 
 // The winner is the lowest-`uid` non-deleted collection, but the cache is
