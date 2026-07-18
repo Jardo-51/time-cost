@@ -4,6 +4,7 @@
       <v-chip
         class="me-2"
         :color="categories.byId(template.categoryId)?.color"
+        :disabled="pending.has(template.id)"
         variant="tonal"
         @click="quickAdd(template)"
       >
@@ -22,6 +23,7 @@
 
 <script lang="ts" setup>
   import type { ExpenseTemplate } from '@/types'
+  import { reactive } from 'vue'
   import { useWorktime } from '@/composables/useWorktime'
   import { useAppStore } from '@/stores/app'
   import { useCategoriesStore } from '@/stores/categories'
@@ -33,12 +35,22 @@
   const app = useAppStore()
   const { worktimeFor } = useWorktime()
 
+  // In-flight guard so a double tap on a chip (common on mobile) doesn't
+  // create two expenses from the same template.
+  const pending = reactive(new Set<string>())
+
   async function quickAdd (template: ExpenseTemplate): Promise<void> {
-    const expense = await templates.applyTemplate(template.id)
-    if (!expense) return
-    const worktime = worktimeFor(expense)
-    app.showSnackbar(worktime === '—'
-      ? `${template.name} added`
-      : `${template.name} added — ${worktime} of work`)
+    if (pending.has(template.id)) return
+    pending.add(template.id)
+    try {
+      const expense = await templates.applyTemplate(template.id)
+      if (!expense) return
+      const worktime = worktimeFor(expense)
+      app.showSnackbar(worktime === '—'
+        ? `${template.name} added`
+        : `${template.name} added — ${worktime} of work`)
+    } finally {
+      pending.delete(template.id)
+    }
   }
 </script>

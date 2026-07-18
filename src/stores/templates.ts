@@ -5,6 +5,8 @@ import { db } from '@/db'
 import { toPlain } from '@/db/plain'
 import { useExpensesStore } from '@/stores/expenses'
 import { useSyncStore } from '@/stores/sync'
+import { createSyncedTable } from '@/stores/syncedTable'
+import { nextModifiedAt } from '@/utils/clock'
 import { todayISO } from '@/utils/date'
 
 export type TemplateInput = Omit<ExpenseTemplate, keyof SyncFields | 'sortOrder'>
@@ -12,51 +14,22 @@ export type TemplateInput = Omit<ExpenseTemplate, keyof SyncFields | 'sortOrder'
 export const useTemplatesStore = defineStore('templates', () => {
   const templates = ref<ExpenseTemplate[]>([])
 
+  const table = createSyncedTable<ExpenseTemplate, TemplateInput>({
+    table: db.templates,
+    list: templates,
+    // New templates sort after the current maximum.
+    build: input => ({
+      ...input,
+      sortOrder: Math.max(0, ...templates.value.map(t => t.sortOrder)) + 1,
+      id: crypto.randomUUID(),
+    }),
+    // Records synced in from a pre-tags build have no tagIds field.
+    fromStored: t => ({ ...t, tagIds: t.tagIds ?? [] }),
+  })
+
   const sorted = computed(() =>
     templates.value.toSorted((a: ExpenseTemplate, b: ExpenseTemplate) => a.sortOrder - b.sortOrder),
   )
-
-  async function hydrate (): Promise<void> {
-    // Records synced in from a pre-tags build have no tagIds field.
-    templates.value = (await db.templates.toArray())
-      .filter(t => !t.deleted)
-      .map(t => ({ ...t, tagIds: t.tagIds ?? [] }))
-  }
-
-  async function add (input: TemplateInput): Promise<void> {
-    const maxOrder = Math.max(0, ...templates.value.map(t => t.sortOrder))
-    const template: ExpenseTemplate = {
-      ...input,
-      sortOrder: maxOrder + 1,
-      id: crypto.randomUUID(),
-      modifiedAt: Date.now(),
-      deleted: false,
-    }
-    await db.templates.put(toPlain(template))
-    templates.value = [...templates.value, template]
-    useSyncStore().scheduleSync()
-  }
-
-  async function update (id: string, patch: Partial<TemplateInput>): Promise<void> {
-    const existing = templates.value.find(t => t.id === id)
-    if (!existing) {
-      return
-    }
-    const updated: ExpenseTemplate = { ...existing, ...patch, modifiedAt: Date.now() }
-    await db.templates.put(toPlain(updated))
-    templates.value = templates.value.map(t => (t.id === id ? updated : t))
-    useSyncStore().scheduleSync()
-  }
-
-  async function remove (id: string): Promise<void> {
-    const existing = templates.value.find(t => t.id === id)
-    if (!existing) {
-      return
-    }
-    await db.templates.put(toPlain({ ...existing, deleted: true, modifiedAt: Date.now() }))
-    templates.value = templates.value.filter(t => t.id !== id)
-    useSyncStore().scheduleSync()
-  }
 
   async function move (id: string, direction: -1 | 1): Promise<void> {
     const list = sorted.value
@@ -66,7 +39,7 @@ export const useTemplatesStore = defineStore('templates', () => {
       return
     }
     const current = list[index]!
-    const now = Date.now()
+    const now = nextModifiedAt()
     const a: ExpenseTemplate = { ...current, sortOrder: other.sortOrder, modifiedAt: now }
     const b: ExpenseTemplate = { ...other, sortOrder: current.sortOrder, modifiedAt: now }
     await db.templates.bulkPut(toPlain([a, b]))
@@ -93,10 +66,10 @@ export const useTemplatesStore = defineStore('templates', () => {
   return {
     templates,
     sorted,
-    hydrate,
-    add,
-    update,
-    remove,
+    hydrate: table.hydrate,
+    add: table.add,
+    update: table.update,
+    remove: table.remove,
     move,
     applyTemplate,
   }

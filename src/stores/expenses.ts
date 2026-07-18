@@ -6,7 +6,9 @@ import { toPlain } from '@/db/plain'
 import { useFxStore } from '@/stores/fx'
 import { useSettingsStore } from '@/stores/settings'
 import { useSyncStore } from '@/stores/sync'
+import { createSyncedTable } from '@/stores/syncedTable'
 import { resolveBaseAmount } from '@/utils/base'
+import { nextModifiedAt } from '@/utils/clock'
 
 export interface ExpenseInput {
   amount: number
@@ -24,15 +26,6 @@ function sortExpenses (list: Expense[]): Expense[] {
 export const useExpensesStore = defineStore('expenses', () => {
   const expenses = ref<Expense[]>([])
 
-  async function hydrate (): Promise<void> {
-    // Records synced in from a pre-tags build have no tagIds field.
-    expenses.value = sortExpenses(
-      (await db.expenses.toArray())
-        .filter(e => !e.deleted)
-        .map(e => ({ ...e, tagIds: e.tagIds ?? [] })),
-    )
-  }
-
   function snapshotBase (amount: number, currency: string): Pick<Expense, 'baseAmount' | 'baseCurrency'> {
     return {
       baseAmount: useFxStore().toBase(amount, currency),
@@ -40,56 +33,37 @@ export const useExpensesStore = defineStore('expenses', () => {
     }
   }
 
-  async function add (input: ExpenseInput): Promise<Expense> {
-    const now = Date.now()
-    const expense: Expense = {
+  const table = createSyncedTable<Expense, ExpenseInput>({
+    table: db.expenses,
+    list: expenses,
+    build: input => ({
       ...input,
       ...snapshotBase(input.amount, input.currency),
       tagIds: input.tagIds ?? [],
       id: crypto.randomUUID(),
-      createdAt: now,
-      modifiedAt: now,
-      deleted: false,
-    }
-    await db.expenses.put(toPlain(expense))
-    expenses.value = sortExpenses([...expenses.value, expense])
-    useSyncStore().scheduleSync()
-    return expense
-  }
+      createdAt: Date.now(),
+    }),
+    // Records synced in from a pre-tags build have no tagIds field.
+    fromStored: e => ({ ...e, tagIds: e.tagIds ?? [] }),
+    sort: sortExpenses,
+  })
 
   async function update (id: string, patch: Partial<ExpenseInput>): Promise<void> {
     const existing = expenses.value.find(e => e.id === id)
     if (!existing) {
       return
     }
-    const updated: Expense = { ...existing, ...patch, modifiedAt: Date.now() }
+    const updated: Expense = { ...existing, ...patch, modifiedAt: nextModifiedAt() }
     // Amount/currency edits re-snapshot with today's rates — the frozen value
     // belongs to the entry as it was; a corrected entry is a new fact.
     if (patch.amount !== undefined || patch.currency !== undefined) {
       Object.assign(updated, snapshotBase(updated.amount, updated.currency))
     }
-    await db.expenses.put(toPlain(updated))
-    expenses.value = sortExpenses(expenses.value.map(e => (e.id === id ? updated : e)))
-    useSyncStore().scheduleSync()
-  }
-
-  async function remove (id: string): Promise<Expense | null> {
-    const existing = expenses.value.find(e => e.id === id)
-    if (!existing) {
-      return null
-    }
-    const tombstoned: Expense = { ...existing, deleted: true, modifiedAt: Date.now() }
-    await db.expenses.put(toPlain(tombstoned))
-    expenses.value = expenses.value.filter(e => e.id !== id)
-    useSyncStore().scheduleSync()
-    return tombstoned
+    await table.write(updated)
   }
 
   async function restore (expense: Expense): Promise<void> {
-    const revived: Expense = { ...expense, deleted: false, modifiedAt: Date.now() }
-    await db.expenses.put(toPlain(revived))
-    expenses.value = sortExpenses([...expenses.value, revived])
-    useSyncStore().scheduleSync()
+    await table.write({ ...expense, deleted: false, modifiedAt: nextModifiedAt() })
   }
 
   // Repairs every snapshot that is missing (entered while no rate was known)
@@ -99,7 +73,7 @@ export const useExpensesStore = defineStore('expenses', () => {
   async function resyncBaseSnapshots (): Promise<void> {
     const fx = useFxStore()
     const base = useSettingsStore().baseCurrency
-    const now = Date.now()
+    const now = nextModifiedAt()
     const repaired = new Map<string, Expense>()
     for (const expense of expenses.value) {
       if (expense.baseAmount != null && expense.baseCurrency === base) {
@@ -121,10 +95,10 @@ export const useExpensesStore = defineStore('expenses', () => {
 
   return {
     expenses,
-    hydrate,
-    add,
+    hydrate: table.hydrate,
+    add: table.add,
     update,
-    remove,
+    remove: table.remove,
     restore,
     resyncBaseSnapshots,
   }

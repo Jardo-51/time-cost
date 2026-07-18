@@ -9,10 +9,17 @@ import { useFxStore } from '@/stores/fx'
 import { useSettingsStore } from '@/stores/settings'
 import { useTagsStore } from '@/stores/tags'
 import { useTemplatesStore } from '@/stores/templates'
+import { observeModifiedAt } from '@/utils/clock'
 
 // One Etebase collection, one encrypted item per record. Item content is
 // JSON { entity, data }; item meta { name: localId, mtime: modifiedAt }.
-// Conflicts resolve last-write-wins by the record's modifiedAt.
+// Conflicts resolve last-write-wins by the record's modifiedAt, and an exact
+// tie (remoteModifiedAt === local.modifiedAt) counts as "already applied".
+// modifiedAt is minted by the device-monotonic clock (utils/clock), which
+// keeps a local edit strictly increasing and — via observeModifiedAt below —
+// never behind a remote timestamp this device has already pulled in. Clock
+// skew *between* devices is still not resolved here; that is an accepted
+// tradeoff for this offline-first app class.
 
 const STOKEN_KEY = 'etebase.stoken'
 const BATCH_SIZE = 50
@@ -97,6 +104,17 @@ async function applyRemoteItem (
   const remoteModifiedAt = typeof payload?.data?.modifiedAt === 'number'
     ? payload.data.modifiedAt
     : (typeof meta.mtime === 'number' ? meta.mtime : Date.now())
+  // Keep the local clock from later minting an edit behind a remote revision
+  // it has already seen — LWW would silently discard such an edit. Downside of
+  // this Lamport-style advance: a far-future timestamp from a skewed device
+  // drags this clock permanently forward, so subsequent local edits are minted
+  // at `skewed + 1` and the skew propagates account-wide, outliving a fix to
+  // the misconfigured device. It also defers purgeOldTombstones — its
+  // `modifiedAt < Date.now() - TTL` check won't purge future-dated tombstones
+  // until the wall clock catches up. Accepted rather than capped: a cap would
+  // let a local edit be minted below a genuine remote value and then be
+  // silently discarded by LWW — the exact loss this observe call prevents.
+  observeModifiedAt(remoteModifiedAt)
 
   let entity = payload?.entity ?? null
   if (!entity && localId === 'settings') {
@@ -129,7 +147,11 @@ async function applyRemoteSettings (
   touched: Set<SyncEntity>,
 ): Promise<boolean> {
   if (!payload) {
-    return true
+    // Content didn't parse: nothing was applied, so the local copy does NOT
+    // match this remote revision. Reporting success here would advance
+    // lastSyncedModifiedAt past a revision we never applied (applyRemoteRecord
+    // returns false in the same situation).
+    return false
   }
   const local = await getMeta<AppSettings>('appSettings')
   if (local && remoteModifiedAt <= local.modifiedAt) {
@@ -155,27 +177,33 @@ async function applyRemoteRecord (
   if (!table) {
     return false
   }
-  const local = await table.get(localId)
-  if (remoteDeleted) {
-    if (!local) {
+  // Sync runs in the background while the UI is live. Read, compare and write
+  // in one transaction so a concurrent local edit committed between the get
+  // and the put can't be silently clobbered by older remote data — the LWW
+  // comparison and the write must see the same snapshot.
+  return db.transaction('rw', table, async () => {
+    const local = await table.get(localId)
+    if (remoteDeleted) {
+      if (!local) {
+        return true
+      }
+      if (local.modifiedAt > remoteModifiedAt) {
+        return false // local edit wins over the remote delete
+      }
+      await table.put({ ...local, deleted: true, modifiedAt: remoteModifiedAt })
+      touched.add(entity)
       return true
     }
-    if (local.modifiedAt > remoteModifiedAt) {
-      return false // local edit wins over the remote delete
+    if (!payload) {
+      return false
     }
-    await table.put({ ...local, deleted: true, modifiedAt: remoteModifiedAt })
+    if (local && remoteModifiedAt <= local.modifiedAt) {
+      return remoteModifiedAt === local.modifiedAt
+    }
+    await table.put({ ...payload.data, id: localId })
     touched.add(entity)
     return true
-  }
-  if (!payload) {
-    return false
-  }
-  if (local && remoteModifiedAt <= local.modifiedAt) {
-    return remoteModifiedAt === local.modifiedAt
-  }
-  await table.put({ ...payload.data, id: localId })
-  touched.add(entity)
-  return true
+  })
 }
 
 async function findEntityOfLocal (localId: string): Promise<SyncEntity | null> {

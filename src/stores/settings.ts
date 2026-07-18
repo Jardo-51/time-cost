@@ -4,6 +4,8 @@ import { computed, ref } from 'vue'
 import { db, getMeta, setMeta } from '@/db'
 import { toPlain } from '@/db/plain'
 import { useSyncStore } from '@/stores/sync'
+import { createSyncedTable } from '@/stores/syncedTable'
+import { nextModifiedAt, observeModifiedAt } from '@/utils/clock'
 import { todayISO } from '@/utils/date'
 import { incomePeriodFor } from '@/utils/worktime'
 
@@ -13,6 +15,12 @@ export const useSettingsStore = defineStore('settings', () => {
   const baseCurrency = ref('EUR')
   const settingsModifiedAt = ref(0)
   const incomePeriods = ref<IncomePeriod[]>([])
+
+  const periodsTable = createSyncedTable<IncomePeriod, IncomePeriodInput>({
+    table: db.incomePeriods,
+    list: incomePeriods,
+    build: input => ({ ...input, id: crypto.randomUUID() }),
+  })
 
   const sortedPeriods = computed(() =>
     incomePeriods.value.toSorted((a, b) => b.effectiveFrom.localeCompare(a.effectiveFrom)),
@@ -25,8 +33,11 @@ export const useSettingsStore = defineStore('settings', () => {
     if (settings) {
       baseCurrency.value = settings.baseCurrency
       settingsModifiedAt.value = settings.modifiedAt
+      // appSettings is synced by modifiedAt too but lives in meta, not a
+      // syncedTable, so seed the clock with it directly (see syncedTable.hydrate).
+      observeModifiedAt(settings.modifiedAt)
     }
-    incomePeriods.value = (await db.incomePeriods.toArray()).filter(p => !p.deleted)
+    await periodsTable.hydrate()
   }
 
   // Changing the base currency converts income amounts and expense snapshots
@@ -52,7 +63,7 @@ export const useSettingsStore = defineStore('settings', () => {
       return false
     }
 
-    const now = Date.now()
+    const now = nextModifiedAt()
     baseCurrency.value = code
     settingsModifiedAt.value = now
     const settings: AppSettings = { baseCurrency: code, modifiedAt: now }
@@ -73,39 +84,6 @@ export const useSettingsStore = defineStore('settings', () => {
     return true
   }
 
-  async function addIncomePeriod (input: IncomePeriodInput): Promise<void> {
-    const period: IncomePeriod = {
-      ...input,
-      id: crypto.randomUUID(),
-      modifiedAt: Date.now(),
-      deleted: false,
-    }
-    await db.incomePeriods.put(toPlain(period))
-    incomePeriods.value = [...incomePeriods.value, period]
-    useSyncStore().scheduleSync()
-  }
-
-  async function updateIncomePeriod (id: string, patch: Partial<IncomePeriodInput>): Promise<void> {
-    const existing = incomePeriods.value.find(p => p.id === id)
-    if (!existing) {
-      return
-    }
-    const updated: IncomePeriod = { ...existing, ...patch, modifiedAt: Date.now() }
-    await db.incomePeriods.put(toPlain(updated))
-    incomePeriods.value = incomePeriods.value.map(p => (p.id === id ? updated : p))
-    useSyncStore().scheduleSync()
-  }
-
-  async function removeIncomePeriod (id: string): Promise<void> {
-    const existing = incomePeriods.value.find(p => p.id === id)
-    if (!existing) {
-      return
-    }
-    await db.incomePeriods.put(toPlain({ ...existing, deleted: true, modifiedAt: Date.now() }))
-    incomePeriods.value = incomePeriods.value.filter(p => p.id !== id)
-    useSyncStore().scheduleSync()
-  }
-
   return {
     baseCurrency,
     settingsModifiedAt,
@@ -115,8 +93,8 @@ export const useSettingsStore = defineStore('settings', () => {
     isIncomeConfigured,
     hydrate,
     saveBaseCurrency,
-    addIncomePeriod,
-    updateIncomePeriod,
-    removeIncomePeriod,
+    addIncomePeriod: periodsTable.add,
+    updateIncomePeriod: periodsTable.update,
+    removeIncomePeriod: periodsTable.remove,
   }
 })

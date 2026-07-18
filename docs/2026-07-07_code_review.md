@@ -44,34 +44,37 @@ Severity legend:
 
 ## MEDIUM
 
-- [ ] **6. First-sync race can create two Etebase collections → permanent split-brain** — `src/services/sync/etebase.ts:105-114`
+- [x] **6. First-sync race can create two Etebase collections → permanent split-brain** — `src/services/sync/etebase.ts:105-114`
   `getCollection` does list-then-create with no uniqueness guarantee. If two devices run their first sync concurrently (or a retry after a partial failure), each creates its own `com.timecost.app` collection. Afterwards `data.find(c => !c.isDeleted)` picks an arbitrary one per device and the account's data is silently split in two.
   **Fix:** after creating, re-list and prefer a deterministic winner (e.g. lowest `uid`), migrating items if the local collection lost; or at minimum surface an error when more than one non-deleted collection exists.
 
-- [ ] **7. The sync engine — the most intricate module — has zero test coverage in CI** — `src/services/sync/__tests__/engine.e2e.spec.ts:38`, `.github/workflows/build.yml`
+- [x] **7. The sync engine — the most intricate module — has zero test coverage in CI** — `src/services/sync/__tests__/engine.e2e.spec.ts:38`, `.github/workflows/build.yml`
   The only tests for `engine.ts` are e2e tests that self-skip when no Etebase server is reachable, and the CI workflow doesn't start one. All LWW/tombstone/stoken logic is effectively unverified on every push.
   **Fix:** either start the `victorrds/etesync` container as a service in `build.yml`, or add unit tests for `applyRemoteRecord`/`collectDirty`/`purgeOldTombstones` with a mocked item manager (they are pure-ish over Dexie + fake-indexeddb).
+  _Not applicable: already resolved. `.github/workflows/build.yml` now starts the `victorrds/etesync` container (pinned by digest), waits for it to migrate and listen, creates the test account, and runs `pnpm test` with `ETEBASE_REQUIRED=1` (lines 37-69) — which turns the e2e suite's self-skip into a hard build failure. The engine's LWW/tombstone/stoken paths are exercised against a real server on every push. This was the review's first suggested fix._
 
-- [ ] **8. Bootstrap failure is swallowed: the app mounts with empty stores and an unhandled rejection** — `src/main.ts:25`, `src/bootstrap.ts`
+- [x] **8. Bootstrap failure is swallowed: the app mounts with empty stores and an unhandled rejection** — `src/main.ts:25`, `src/bootstrap.ts`
   `bootstrap().finally(() => app.mount('#app'))` mounts even when IndexedDB is unavailable (Firefox private browsing, storage pressure) or seeding/hydration throws. The user sees the "Add your first expense" empty state over their real (inaccessible) data, and the rejection escapes unhandled.
   **Fix:** `.catch` the bootstrap error, surface a "storage unavailable / failed to load data" screen or snackbar, and log the error.
 
-- [ ] **9. Pull applies remote records with a non-transactional read-compare-write, so a concurrent local edit can be lost even when it is newer** — `src/services/sync/engine.ts:144-177`
+- [x] **9. Pull applies remote records with a non-transactional read-compare-write, so a concurrent local edit can be lost even when it is newer** — `src/services/sync/engine.ts:144-177`
   `applyRemoteRecord` does `table.get(localId)` → compare → `table.put(...)`. If the user saves an edit between the get and the put (sync runs in the background while the UI is live), the put overwrites the fresh edit with remote data even though the edit's `modifiedAt` is newer — violating the engine's own LWW contract.
   **Fix:** wrap the get/compare/put per record in `db.transaction('rw', table, ...)` so the comparison and write are atomic.
 
-- [ ] **10. No double-submit guard on record creation: quick-add chips and dialog Save buttons create duplicates on double tap** — `src/components/expenses/QuickAddRow.vue:36`, `src/components/expenses/ExpenseFormDialog.vue:168`, `src/components/templates/TemplateFormDialog.vue:111`
+- [x] **10. No double-submit guard on record creation: quick-add chips and dialog Save buttons create duplicates on double tap** — `src/components/expenses/QuickAddRow.vue:36`, `src/components/expenses/ExpenseFormDialog.vue:168`, `src/components/templates/TemplateFormDialog.vue:111`
   All create paths are `async` with the button left enabled while awaiting; a double tap (common on mobile, the primary target) inserts two records.
   **Fix:** a `saving` ref driving `:disabled`/`:loading` on the buttons, and a short in-flight guard on `quickAdd`.
 
-- [ ] **11. Every data store duplicates the same tombstone-CRUD boilerplate** — `src/stores/expenses.ts`, `categories.ts`, `templates.ts`, `settings.ts` (income periods), `fx.ts` (custom rates)
+- [x] **11. Every data store duplicates the same tombstone-CRUD boilerplate** — `src/stores/expenses.ts`, `categories.ts`, `templates.ts`, `settings.ts` (income periods), `fx.ts` (custom rates)
   Five stores repeat hydrate-filter-deleted, add-with-uuid/modifiedAt, update-find-merge-put, remove-tombstone-put, plus `scheduleSync()` after each. That is ~150 duplicated lines where a bug fix (e.g. finding 9's transactional discipline, or a future `modifiedAt` change) must be applied five times.
   **Fix:** extract a small generic helper (e.g. `createSyncedTable<T>(table)` returning `hydrate/add/update/remove`) and compose stores from it.
+  _Fixed: `src/stores/syncedTable.ts` — `createSyncedTable<T>` owns hydrate/add/update/remove plus a `write` primitive (put + reactive-list update + `scheduleSync`, stamping `modifiedAt` via `nextModifiedAt`). Every store composes it: expenses/tags (build), categories/templates/income periods (build + custom hydrate/remove), and fx custom rates use `write`/`remove` for their upsert shape. Store-specific behaviour (expense snapshots, category/tag cascade deletes, template reorder, base-currency conversion) layers on top. Verified with the full suite including the sync e2e run against a live Etebase server (66 passing)._
 
-- [ ] **12. LWW conflict resolution trusts unsynchronized device clocks** — `src/services/sync/engine.ts:14`, all stores' `modifiedAt: Date.now()`
+- [x] **12. LWW conflict resolution trusts unsynchronized device clocks** — `src/services/sync/engine.ts:14`, all stores' `modifiedAt: Date.now()`
   A device with a clock set hours ahead permanently wins every conflict, and `remoteModifiedAt <= local.modifiedAt` equality (`engine.ts:171`) treats an exact tie as "already applied". This is an accepted design tradeoff for this app class, but it deserves a documented mitigation (e.g. clamping `modifiedAt` to `max(Date.now(), lastKnown + 1)` monotonically per device).
+  _Fixed: `src/utils/clock.ts` adds `nextModifiedAt()` — a per-device monotonic clamp `max(Date.now(), last + 1)` — and every store now stamps `modifiedAt` through it instead of `Date.now()`. `observeModifiedAt()` feeds it every remote timestamp during pull so a local edit is never minted behind a revision the device has already seen. The engine header documents the tie/monotonic behaviour and that cross-device skew remains an accepted tradeoff._
 
-- [ ] **13. `applyRemoteSettings` reports success for an unparsable payload** — `src/services/sync/engine.ts:129-131`
+- [x] **13. `applyRemoteSettings` reports success for an unparsable payload** — `src/services/sync/engine.ts:129-131`
   When the item content fails to parse (`payload === null`), the function returns `true` ("local copy matches remote"), so `lastSyncedModifiedAt` is set to the remote revision even though nothing was applied. Harmless today (local settings newer would still be pushed), but it corrupts the meaning of the sync bookkeeping and will bite any future logic built on it. `applyRemoteRecord` correctly returns `false` in the same situation.
 
 ## LOW

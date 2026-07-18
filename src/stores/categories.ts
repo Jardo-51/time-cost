@@ -6,12 +6,20 @@ import { db } from '@/db'
 import { toPlain } from '@/db/plain'
 import { useExpensesStore } from '@/stores/expenses'
 import { useSyncStore } from '@/stores/sync'
+import { createSyncedTable } from '@/stores/syncedTable'
 import { useTemplatesStore } from '@/stores/templates'
+import { nextModifiedAt } from '@/utils/clock'
 
 export type CategoryInput = Omit<Category, keyof SyncFields | 'isProtected'>
 
 export const useCategoriesStore = defineStore('categories', () => {
   const categories = ref<Category[]>([])
+
+  const table = createSyncedTable<Category, CategoryInput>({
+    table: db.categories,
+    list: categories,
+    build: input => ({ ...input, id: crypto.randomUUID() }),
+  })
 
   const sorted = computed(() =>
     categories.value.toSorted((a, b) => {
@@ -30,33 +38,6 @@ export const useCategoriesStore = defineStore('categories', () => {
     return categories.value.find(c => c.id === id)
   }
 
-  async function hydrate (): Promise<void> {
-    categories.value = (await db.categories.toArray()).filter(c => !c.deleted)
-  }
-
-  async function add (input: CategoryInput): Promise<void> {
-    const category: Category = {
-      ...input,
-      id: crypto.randomUUID(),
-      modifiedAt: Date.now(),
-      deleted: false,
-    }
-    await db.categories.put(toPlain(category))
-    categories.value = [...categories.value, category]
-    useSyncStore().scheduleSync()
-  }
-
-  async function update (id: string, patch: Partial<CategoryInput>): Promise<void> {
-    const existing = categories.value.find(c => c.id === id)
-    if (!existing) {
-      return
-    }
-    const updated: Category = { ...existing, ...patch, modifiedAt: Date.now() }
-    await db.categories.put(toPlain(updated))
-    categories.value = categories.value.map(c => (c.id === id ? updated : c))
-    useSyncStore().scheduleSync()
-  }
-
   // Tombstones the category and moves its expenses and templates to "Other"
   // in a single transaction.
   async function remove (id: string): Promise<void> {
@@ -64,7 +45,7 @@ export const useCategoriesStore = defineStore('categories', () => {
     if (!existing || existing.isProtected) {
       return
     }
-    const now = Date.now()
+    const now = nextModifiedAt()
     await db.transaction('rw', [db.categories, db.expenses, db.templates], async () => {
       await db.expenses
         .where('categoryId')
@@ -84,9 +65,9 @@ export const useCategoriesStore = defineStore('categories', () => {
     categories,
     sorted,
     byId,
-    hydrate,
-    add,
-    update,
+    hydrate: table.hydrate,
+    add: table.add,
+    update: table.update,
     remove,
   }
 })

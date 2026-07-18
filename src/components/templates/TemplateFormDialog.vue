@@ -81,7 +81,14 @@
       <v-card-actions>
         <v-spacer />
         <v-btn variant="text" @click="isOpen = false">Cancel</v-btn>
-        <v-btn color="primary" :disabled="!isValid" variant="flat" @click="save">Save</v-btn>
+
+        <v-btn
+          color="primary"
+          :disabled="!isValid || saving"
+          :loading="saving"
+          variant="flat"
+          @click="save"
+        >Save</v-btn>
       </v-card-actions>
     </v-card>
   </v-dialog>
@@ -114,6 +121,7 @@
   const currency = ref('EUR')
   const categoryId = ref(OTHER_CATEGORY_ID)
   const tagNames = ref<string[]>([])
+  const saving = ref(false)
 
   watch(isOpen, open => {
     if (!open) return
@@ -134,17 +142,23 @@
   const isValid = computed(() => !!name.value.trim() && parsedAmount.value !== null)
 
   async function save (): Promise<void> {
-    if (!isValid.value || parsedAmount.value === null) return
-    const input = {
-      name: name.value.trim(),
-      amount: parsedAmount.value,
-      currency: currency.value,
-      categoryId: categoryId.value,
-      tagIds: await tags.ensureIds(tagNames.value),
+    // A double tap must not create two templates.
+    if (!isValid.value || parsedAmount.value === null || saving.value) return
+    saving.value = true
+    try {
+      const input = {
+        name: name.value.trim(),
+        amount: parsedAmount.value,
+        currency: currency.value,
+        categoryId: categoryId.value,
+        tagIds: await tags.ensureIds(tagNames.value),
+      }
+      await (props.template
+        ? templates.update(props.template.id, input)
+        : templates.add(input))
+      isOpen.value = false
+    } finally {
+      saving.value = false
     }
-    await (props.template
-      ? templates.update(props.template.id, input)
-      : templates.add(input))
-    isOpen.value = false
   }
 </script>
