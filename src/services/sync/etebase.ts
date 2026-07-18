@@ -184,7 +184,12 @@ async function listCollections (manager: Etebase.CollectionManager): Promise<Ete
   const { data } = await manager.list(COLLECTION_TYPE)
   return data
     .filter(c => !c.isDeleted)
-    .toSorted((a, b) => a.uid.localeCompare(b.uid))
+    // Compare by code unit, not `localeCompare`: the convergence rests on every
+    // device independently picking the *same* lowest uid, but ICU collations
+    // disagree between locales (a Danish `aa…` sorts after `z…`, case-first
+    // tie-breaking differs), so `localeCompare` could hand two differently
+    // configured devices different winners and silently re-split the account.
+    .toSorted((a, b) => (a.uid < b.uid ? -1 : a.uid > b.uid ? 1 : 0))
 }
 
 export function getItemManager (col: Etebase.Collection): Etebase.ItemManager {
