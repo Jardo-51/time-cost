@@ -95,16 +95,49 @@ export async function getCollection (): Promise<Etebase.Collection> {
   const cached = await getMeta<Uint8Array>(COLLECTION_KEY)
   if (cached) {
     try {
-      collection = manager.cacheLoad(cached)
+      collection = await reconcileCachedCollection(manager, manager.cacheLoad(cached))
+      await setMeta(COLLECTION_KEY, manager.cacheSave(collection))
       return collection
     } catch {
-      // Fall through to discovery.
+      // `cacheLoad` failed (corrupt cache) — fall through to discovery. A list
+      // failure inside reconcile is swallowed there, so offline starts keep
+      // the cached collection rather than landing here and creating a new one.
     }
   }
 
   collection = await discoverOrCreateCollection(manager)
   await setMeta(COLLECTION_KEY, manager.cacheSave(collection))
   return collection
+}
+
+// The winner is the lowest-`uid` non-deleted collection, but the cache is
+// written during a possibly-concurrent first sync and can end up pointing at a
+// collection that later loses the tie to another device's. Caching it and
+// never re-listing leaves a residual split-brain: device A, whose re-list ran
+// before device B's upload committed, caches its own collection and — without
+// this reconcile — trusts it forever. Re-list once per app start (this only
+// runs while the module-level `collection` is null on a fresh load) and
+// converge on the global winner. If this device had cached a loser, drop its
+// sync bookkeeping so every local record re-syncs against the winner on the
+// same run (mappings and stoken belong to the losing collection). A list
+// failure (offline) keeps the cached collection; sync needs the network anyway
+// and the next successful start reconciles.
+async function reconcileCachedCollection (
+  manager: Etebase.CollectionManager,
+  cached: Etebase.Collection,
+): Promise<Etebase.Collection> {
+  let winner: Etebase.Collection | undefined
+  try {
+    winner = (await listCollections(manager))[0]
+  } catch {
+    return cached
+  }
+  if (!winner || winner.uid === cached.uid) {
+    return cached
+  }
+  await db.syncItems.clear()
+  await deleteMeta(STOKEN_KEY)
+  return winner
 }
 
 // Two devices running their first sync concurrently (or a retry after a
@@ -131,7 +164,20 @@ async function discoverOrCreateCollection (
   // Re-list to catch a collection another device created concurrently and
   // converge on the deterministic winner rather than trusting our own.
   const afterCreate = await listCollections(manager)
-  return afterCreate[0] ?? created
+  const winner = afterCreate[0] ?? created
+  if (winner.uid !== created.uid) {
+    // We lost the race. The collection we just created is empty (nothing has
+    // been pushed yet) and can never be the winner for any device, so delete
+    // it on the server to keep orphan collections from accumulating.
+    try {
+      created.delete()
+      await manager.upload(created)
+    } catch {
+      // Best-effort cleanup — a leftover empty collection is harmless clutter
+      // and will simply never be chosen.
+    }
+  }
+  return winner
 }
 
 async function listCollections (manager: Etebase.CollectionManager): Promise<Etebase.Collection[]> {
