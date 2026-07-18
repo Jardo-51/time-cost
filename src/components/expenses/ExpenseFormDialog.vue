@@ -122,7 +122,7 @@
   import { useFxStore } from '@/stores/fx'
   import { useSettingsStore } from '@/stores/settings'
   import { useTagsStore } from '@/stores/tags'
-  import { todayISO } from '@/utils/date'
+  import { isValidISODate, todayISO } from '@/utils/date'
   import { formatMoney } from '@/utils/money'
 
   const props = defineProps<{
@@ -177,7 +177,7 @@
   })
 
   const isValid = computed(() =>
-    parsedAmount.value !== null && parsedAmount.value > 0 && /^\d{4}-\d{2}-\d{2}$/.test(date.value),
+    parsedAmount.value !== null && parsedAmount.value > 0 && isValidISODate(date.value),
   )
 
   // The signature moment: worktime updates live while typing.

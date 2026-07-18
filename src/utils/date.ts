@@ -19,6 +19,12 @@ export function parseISODate (iso: string): Date {
   return new Date(y!, m! - 1, d!)
 }
 
+// A regex alone accepts impossible dates like '2026-13-40'; round-tripping
+// through the Date constructor rejects them because it normalises overflow.
+export function isValidISODate (iso: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}$/.test(iso) && toISODate(parseISODate(iso)) === iso
+}
+
 export function addDays (d: Date, n: number): Date {
   const r = new Date(d)
   r.setDate(r.getDate() + n)

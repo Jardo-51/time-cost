@@ -79,7 +79,7 @@ Severity legend:
 
 ## LOW
 
-- [ ] **14. Date validity is only regex-checked, so impossible dates like `2026-13-40` are storable** — `src/components/expenses/ExpenseFormDialog.vue:146`
+- [x] **14. Date validity is only regex-checked, so impossible dates like `2026-13-40` are storable** — `src/components/expenses/ExpenseFormDialog.vue:146`
   `/^\d{4}-\d{2}-\d{2}$/` accepts non-existent calendar dates. Native `type="date"` inputs usually prevent this, but not every browser/platform does. Such a date sorts oddly and never matches any stats bucket. Validate via `toISODate(parseISODate(v)) === v` round-trip.
 
 - [x] **15. `backfillBaseAmounts` is O(n²) and triggers reactivity per repaired expense** — `src/stores/expenses.ts:88-108`
