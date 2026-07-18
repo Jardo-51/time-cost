@@ -57,23 +57,6 @@
     </v-card>
 
     <TagFormDialog v-model="dialogOpen" :tag="editing" />
-
-    <v-dialog v-model="deleteDialogOpen" max-width="400">
-      <v-card>
-        <v-card-title>Delete “{{ deleting?.name }}”?</v-card-title>
-
-        <v-card-text>
-          The tag will be removed from
-          {{ deleting ? usageLabel(deleting.id) : '' }}. The expenses themselves stay.
-        </v-card-text>
-
-        <v-card-actions>
-          <v-spacer />
-          <v-btn variant="text" @click="deleteDialogOpen = false">Cancel</v-btn>
-          <v-btn color="error" variant="flat" @click="doDelete">Delete</v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-dialog>
   </v-container>
 </template>
 
@@ -82,6 +65,7 @@
   import { computed, ref } from 'vue'
   import { useRouter } from 'vue-router'
   import TagFormDialog from '@/components/tags/TagFormDialog.vue'
+  import { useConfirm } from '@/composables/useConfirm'
   import { useAppStore } from '@/stores/app'
   import { useExpensesStore } from '@/stores/expenses'
   import { useTagsStore } from '@/stores/tags'
@@ -90,11 +74,10 @@
   const tags = useTagsStore()
   const expenses = useExpensesStore()
   const app = useAppStore()
+  const { confirm } = useConfirm()
 
   const dialogOpen = ref(false)
   const editing = ref<Tag | null>(null)
-  const deleteDialogOpen = ref(false)
-  const deleting = ref<Tag | null>(null)
 
   const usageCounts = computed(() => {
     const counts = new Map<string, number>()
@@ -121,17 +104,13 @@
     dialogOpen.value = true
   }
 
-  function confirmDelete (tag: Tag): void {
-    deleting.value = tag
-    deleteDialogOpen.value = true
-  }
-
-  async function doDelete (): Promise<void> {
-    if (deleting.value) {
-      await tags.remove(deleting.value.id)
-      app.showSnackbar(`${deleting.value.name} deleted`)
-    }
-    deleteDialogOpen.value = false
-    deleting.value = null
+  async function confirmDelete (tag: Tag): Promise<void> {
+    const ok = await confirm({
+      title: `Delete “${tag.name}”?`,
+      message: `The tag will be removed from ${usageLabel(tag.id)}. The expenses themselves stay.`,
+    })
+    if (!ok) return
+    await tags.remove(tag.id)
+    app.showSnackbar(`${tag.name} deleted`)
   }
 </script>

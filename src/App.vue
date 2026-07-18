@@ -6,6 +6,8 @@
 
     <AppBottomNav />
 
+    <ConfirmDialog />
+
     <v-snackbar
       v-model="app.snackbar"
       :color="app.snackbarColor"
@@ -19,6 +21,7 @@
 <script lang="ts" setup>
   import { watch } from 'vue'
   import { useTheme } from 'vuetify'
+  import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
   import AppBottomNav from '@/components/layout/AppBottomNav.vue'
   import { useAppStore } from '@/stores/app'
 

@@ -91,6 +91,7 @@
   import { ref } from 'vue'
   import { useRouter } from 'vue-router'
   import TemplateFormDialog from '@/components/templates/TemplateFormDialog.vue'
+  import { useConfirm } from '@/composables/useConfirm'
   import { useAppStore } from '@/stores/app'
   import { useCategoriesStore } from '@/stores/categories'
   import { useTagsStore } from '@/stores/tags'
@@ -102,6 +103,7 @@
   const categories = useCategoriesStore()
   const tags = useTagsStore()
   const app = useAppStore()
+  const { confirm } = useConfirm()
 
   function subtitleFor (template: ExpenseTemplate): string {
     const hashtags = template.tagIds
@@ -127,6 +129,8 @@
   }
 
   async function remove (template: ExpenseTemplate): Promise<void> {
+    const ok = await confirm({ title: `Delete “${template.name}”?` })
+    if (!ok) return
     await templates.remove(template.id)
     app.showSnackbar(`${template.name} removed`)
   }

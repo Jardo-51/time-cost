@@ -149,6 +149,7 @@
 <script lang="ts" setup>
   import type { IncomePeriod, IncomeUnit } from '@/types'
   import { computed, ref } from 'vue'
+  import { useConfirm } from '@/composables/useConfirm'
   import { useAppStore } from '@/stores/app'
   import { useFxStore } from '@/stores/fx'
   import { useSettingsStore } from '@/stores/settings'
@@ -159,6 +160,7 @@
   const settings = useSettingsStore()
   const fx = useFxStore()
   const app = useAppStore()
+  const { confirm } = useConfirm()
 
   const unitOptions: Array<{ title: string, value: IncomeUnit }> = [
     { title: 'hour', value: 'hour' },
@@ -236,6 +238,11 @@
   }
 
   async function removePeriod (period: IncomePeriod): Promise<void> {
+    const ok = await confirm({
+      title: 'Delete this income period?',
+      message: `${formatMoney(period.amount, settings.baseCurrency)} per ${period.unit}, from ${period.effectiveFrom}.`,
+    })
+    if (!ok) return
     await settings.removeIncomePeriod(period.id)
     app.showSnackbar('Income period removed')
   }
