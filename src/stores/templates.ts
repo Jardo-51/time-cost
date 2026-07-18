@@ -50,12 +50,12 @@ export const useTemplatesStore = defineStore('templates', () => {
     reordered.splice(target, 0, reordered.splice(index, 1)[0]!)
     const now = nextModifiedAt()
     const updates: ExpenseTemplate[] = []
-    reordered.forEach((t, i) => {
+    for (const [i, t] of reordered.entries()) {
       // t still carries its old sortOrder here; i is its new position.
       if (t.sortOrder !== i) {
         updates.push({ ...t, sortOrder: i, modifiedAt: now })
       }
-    })
+    }
     if (updates.length === 0) {
       return
     }

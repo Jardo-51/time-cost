@@ -1,10 +1,17 @@
 <template>
   <v-container class="pa-3">
     <div class="d-flex align-center mb-4">
-      <v-btn icon="mdi-arrow-left" variant="text" @click="router.back()" />
+      <v-btn aria-label="Back" icon="mdi-arrow-left" variant="text" @click="router.back()" />
       <h1 class="ms-2">Categories</h1>
       <v-spacer />
-      <v-btn color="primary" icon="mdi-plus" variant="tonal" @click="openAdd" />
+
+      <v-btn
+        aria-label="Add category"
+        color="primary"
+        icon="mdi-plus"
+        variant="tonal"
+        @click="openAdd"
+      />
     </div>
 
     <v-card>
@@ -22,6 +29,7 @@
 
           <template #append>
             <v-btn
+              :aria-label="`Edit ${category.name}`"
               icon="mdi-pencil"
               size="small"
               variant="text"
@@ -30,6 +38,7 @@
 
             <v-btn
               v-if="!category.isProtected"
+              :aria-label="`Delete ${category.name}`"
               icon="mdi-delete"
               size="small"
               variant="text"

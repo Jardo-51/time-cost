@@ -1,10 +1,17 @@
 <template>
   <v-container class="pa-3">
     <div class="d-flex align-center mb-4">
-      <v-btn icon="mdi-arrow-left" variant="text" @click="router.back()" />
+      <v-btn aria-label="Back" icon="mdi-arrow-left" variant="text" @click="router.back()" />
       <h1 class="ms-2">Tags</h1>
       <v-spacer />
-      <v-btn color="primary" icon="mdi-plus" variant="tonal" @click="openAdd" />
+
+      <v-btn
+        aria-label="Add tag"
+        color="primary"
+        icon="mdi-plus"
+        variant="tonal"
+        @click="openAdd"
+      />
     </div>
 
     <v-empty-state
@@ -30,6 +37,7 @@
 
           <template #append>
             <v-btn
+              :aria-label="`Edit ${tag.name}`"
               icon="mdi-pencil"
               size="small"
               variant="text"
@@ -37,6 +45,7 @@
             />
 
             <v-btn
+              :aria-label="`Delete ${tag.name}`"
               icon="mdi-delete"
               size="small"
               variant="text"

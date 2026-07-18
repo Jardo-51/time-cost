@@ -18,6 +18,7 @@
 
     <div class="d-flex align-center justify-space-between">
       <v-btn
+        aria-label="Previous period"
         icon="mdi-chevron-left"
         size="small"
         variant="text"
@@ -27,6 +28,7 @@
       <span class="text-subtitle-1">{{ label }}</span>
 
       <v-btn
+        aria-label="Next period"
         icon="mdi-chevron-right"
         size="small"
         variant="text"

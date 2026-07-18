@@ -60,6 +60,7 @@
               >
                 <template #append>
                   <v-btn
+                    :aria-label="`Edit income from ${period.effectiveFrom}`"
                     icon="mdi-pencil"
                     size="small"
                     variant="text"
@@ -67,6 +68,7 @@
                   />
 
                   <v-btn
+                    :aria-label="`Delete income from ${period.effectiveFrom}`"
                     icon="mdi-delete"
                     size="small"
                     variant="text"

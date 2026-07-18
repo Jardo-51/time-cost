@@ -26,6 +26,7 @@
         <v-spacer />
 
         <v-btn
+          aria-label="Refresh rates"
           icon="mdi-refresh"
           :loading="fx.refreshing"
           size="small"
@@ -64,6 +65,7 @@
         >
           <template #append>
             <v-btn
+              :aria-label="`Edit ${custom.code}`"
               icon="mdi-pencil"
               size="small"
               variant="text"
@@ -71,6 +73,7 @@
             />
 
             <v-btn
+              :aria-label="`Delete ${custom.code}`"
               icon="mdi-delete"
               size="small"
               variant="text"

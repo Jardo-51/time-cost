@@ -101,7 +101,7 @@ Severity legend:
 - [x] **20. `lastCurrency` from localStorage is not validated against available currencies** — `src/components/expenses/ExpenseFormDialog.vue:133`
   If the remembered currency was a custom rate that has since been removed, the form silently preselects a currency with no rate: the preview shows "no exchange rate yet" and the saved expense gets `baseAmount: null`. Fall back to `settings.baseCurrency` when the code is not in `fx.currencies`. Also note the inconsistency: this and `darkMode` live in localStorage while every other setting lives in the Dexie `meta` table.
 
-- [ ] **21. Icon-only buttons lack accessible labels** — throughout (e.g. `src/pages/CategoriesPage.vue:24-37`, `src/pages/TemplatesPage.vue:40-68`, `src/components/stats/PeriodPicker.vue:20-34`, the FAB in `src/pages/HomePage.vue:40-46`)
+- [x] **21. Icon-only buttons lack accessible labels** — throughout (e.g. `src/pages/CategoriesPage.vue:24-37`, `src/pages/TemplatesPage.vue:40-68`, `src/components/stats/PeriodPicker.vue:20-34`, the FAB in `src/pages/HomePage.vue:40-46`)
   Screen readers announce nothing useful for `icon="mdi-pencil"` buttons. Add `aria-label` (Vuetify passes it through) to edit/delete/move/navigation icon buttons.
 
 - [x] **22. `workbox-window` appears to be an unused dependency** — `package.json:28`
