@@ -13,9 +13,12 @@
 // ahead still wins cross-device conflicts. That is an accepted tradeoff for an
 // offline-first personal app; the monotonic clamp is the documented local
 // mitigation. `observeModifiedAt` narrows the window further: by feeding it
-// every timestamp minted elsewhere (records pulled from the server, values
-// loaded at hydrate) the device won't stamp its next edit behind a value it
-// has already seen, which LWW would otherwise discard.
+// every timestamp minted elsewhere the device won't stamp its next edit behind
+// a value it has already seen, which LWW would otherwise discard. `last` is
+// per-session, so both feed paths matter: the pull path observes every remote
+// revision (see engine.ts), and every store's hydrate re-observes its stored
+// records (tombstones included) so a backwards clock step across a page reload
+// can't mint an edit older than the record already on disk.
 
 let last = 0
 

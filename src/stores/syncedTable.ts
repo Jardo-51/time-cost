@@ -3,7 +3,7 @@ import type { Table } from 'dexie'
 import type { Ref } from 'vue'
 import { toPlain } from '@/db/plain'
 import { useSyncStore } from '@/stores/sync'
-import { nextModifiedAt } from '@/utils/clock'
+import { nextModifiedAt, observeModifiedAt } from '@/utils/clock'
 
 // Every data store repeated the same tombstone-CRUD boilerplate: hydrate as
 // "load, drop tombstones", add as "stamp id/modifiedAt/deleted, put, append,
@@ -43,7 +43,16 @@ export function createSyncedTable<T extends SyncFields, Input = SyncedInput<T>> 
   const sort = options.sort ?? ((records: T[]) => records)
 
   async function hydrate (): Promise<void> {
-    const records = (await table.toArray()).filter(record => !record.deleted).map(record => fromStored(record))
+    const stored = await table.toArray()
+    // Seed the monotonic clock with every stored modifiedAt — tombstones
+    // included, so observe before filtering `deleted` — so the first edit after
+    // a page reload can't be minted behind a value already persisted. Without
+    // this the clock resets to `Date.now()` on each load, and a backwards clock
+    // step would let an edit look older than the record it supersedes.
+    for (const record of stored) {
+      observeModifiedAt(record.modifiedAt)
+    }
+    const records = stored.filter(record => !record.deleted).map(record => fromStored(record))
     list.value = sort(records)
   }
 

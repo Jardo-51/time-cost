@@ -5,7 +5,7 @@ import { db, getMeta, setMeta } from '@/db'
 import { toPlain } from '@/db/plain'
 import { useSyncStore } from '@/stores/sync'
 import { createSyncedTable } from '@/stores/syncedTable'
-import { nextModifiedAt } from '@/utils/clock'
+import { nextModifiedAt, observeModifiedAt } from '@/utils/clock'
 import { todayISO } from '@/utils/date'
 import { incomePeriodFor } from '@/utils/worktime'
 
@@ -33,6 +33,9 @@ export const useSettingsStore = defineStore('settings', () => {
     if (settings) {
       baseCurrency.value = settings.baseCurrency
       settingsModifiedAt.value = settings.modifiedAt
+      // appSettings is synced by modifiedAt too but lives in meta, not a
+      // syncedTable, so seed the clock with it directly (see syncedTable.hydrate).
+      observeModifiedAt(settings.modifiedAt)
     }
     await periodsTable.hydrate()
   }
