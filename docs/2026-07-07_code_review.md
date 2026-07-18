@@ -89,7 +89,7 @@ Severity legend:
 - [ ] **16. Every sync run loads all tables into memory twice** — `src/services/sync/engine.ts:218-237, 298-310`
   `collectDirty` does `table.toArray()` for all five tables, and `purgeOldTombstones` does it again to filter a handful of tombstones. Fine at hundreds of records; wasteful at years of expense history. Use the `modifiedAt` index (`where('modifiedAt').above(...)` needs a per-table dirty watermark, or at least `filter` on a `deleted`-indexed query for the purge).
 
-- [ ] **17. Template reassignment on category delete does a full-table `filter` scan** — `src/stores/categories.ts:72-74`
+- [x] **17. Template reassignment on category delete does a full-table `filter` scan** — `src/stores/categories.ts:72-74`
   `db.templates` has no `categoryId` index (`src/db/index.ts:29`), so the code falls back to `.filter()`. Either add the index in a `version(2)` block or (given template counts are tiny) leave it but note why `filter` is used, unlike the indexed `where` used for expenses two lines above.
 
 - [x] **18. Concurrent template creation on two devices produces duplicate `sortOrder`s, making `move()` a no-op** — `src/stores/templates.ts:22-34, 57-71`
