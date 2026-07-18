@@ -112,8 +112,9 @@ Severity legend:
 
 - [x] **24. `src/styles/settings.scss` is dead boilerplate** — the file is only comments, yet it is wired into `vite-plugin-vuetify` (`vite.config.mts:16`), which forces the slower `configFile` style pipeline. Either use it or drop the `styles.configFile` option and the file.
 
-- [ ] **25. README e2e credentials don't match the test defaults** — `README.md:61-64` vs `src/services/sync/__tests__/engine.e2e.spec.ts:42-43`
+- [x] **25. README e2e credentials don't match the test defaults** — `README.md:61-64` vs `src/services/sync/__tests__/engine.e2e.spec.ts:42-43`
   README starts the container with `SUPER_PASS=adminpass123`, while the test defaults to `test-password-123` (as the *Etebase* account password set during the signup handshake, distinct from the Django password). This works but is non-obvious; document `ETEBASE_TEST_USER`/`ETEBASE_TEST_PASSWORD` next to the docker command so the relationship is clear.
+  _Not applicable: already resolved (folded into the #7 CI work). The README now runs `createsuperuser` with `DJANGO_SUPERUSER_PASSWORD='test-password-123'` — matching the test default `admin` / `test-password-123` — and explicitly documents the `ETEBASE_TEST_USER` / `ETEBASE_TEST_PASSWORD` / `ETEBASE_URL` overrides right beside the docker command (README.md:82-83). The `SUPER_PASS=adminpass123` mismatch the finding describes no longer exists._
 
 - [x] **26. `index.html` has no explicit `Cache-Control` header** — `public/.htaccess`
   Hashed assets are `immutable` and `sw.js` is `no-cache`, but `index.html` falls back to Apache heuristic caching. The service worker mostly hides this after install, but the first visit / SW-bypassed fetches can pin a stale shell. Add `Cache-Control: no-cache` for `index.html`.
