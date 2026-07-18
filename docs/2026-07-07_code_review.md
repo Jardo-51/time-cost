@@ -115,10 +115,10 @@ Severity legend:
 - [ ] **25. README e2e credentials don't match the test defaults** — `README.md:61-64` vs `src/services/sync/__tests__/engine.e2e.spec.ts:42-43`
   README starts the container with `SUPER_PASS=adminpass123`, while the test defaults to `test-password-123` (as the *Etebase* account password set during the signup handshake, distinct from the Django password). This works but is non-obvious; document `ETEBASE_TEST_USER`/`ETEBASE_TEST_PASSWORD` next to the docker command so the relationship is clear.
 
-- [ ] **26. `index.html` has no explicit `Cache-Control` header** — `public/.htaccess`
+- [x] **26. `index.html` has no explicit `Cache-Control` header** — `public/.htaccess`
   Hashed assets are `immutable` and `sw.js` is `no-cache`, but `index.html` falls back to Apache heuristic caching. The service worker mostly hides this after install, but the first visit / SW-bypassed fetches can pin a stale shell. Add `Cache-Control: no-cache` for `index.html`.
 
-- [ ] **27. Deploy rsync never prunes old releases** — `.github/workflows/deploy.yml:51`
+- [x] **27. Deploy rsync never prunes old releases** — `.github/workflows/deploy.yml:51`
   Without `--delete`, hashed chunks accumulate forever on the server. Keeping a grace period is actually good for PWAs (open tabs referencing old chunks), but unbounded growth isn't; consider `--delete` plus a scheduled cleanup, or document the retention decision.
 
 - [x] **28. Stats page computes `workSecondsFor`/`baseAmountOf` twice per expense** — `src/pages/StatsPage.vue:62-112`
