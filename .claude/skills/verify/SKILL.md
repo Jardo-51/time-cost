@@ -33,8 +33,10 @@ the same origin, reloads the app iframe on `route`, optionally performs
 `action`, then releases the img so Firefox captures. Actions implemented:
 `edit` (open expense edit dialog), `filter` (pick tag filter on /stats),
 `filter-year` / `filter-day` (switch period then filter), `delete-tag`
-(delete a tag on /settings/tags, then show home). Failures appear as a red
-banner across the top of the screenshot; no banner = script ran clean.
+(delete a tag on /settings/tags, then show home). `dark=1` / `dark=0` pins the
+theme by writing the app's `darkMode` localStorage key on the shared origin.
+Failures appear as a red banner across the top of the screenshot; no banner =
+script ran clean.
 
 ## Gotchas
 
