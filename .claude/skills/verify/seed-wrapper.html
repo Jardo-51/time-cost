@@ -14,7 +14,7 @@ const params = new URLSearchParams(location.search)
 const target = params.get('route') || '/'
 const action = params.get('action') || ''
 // Same origin as the iframe, so the app's stored theme choice is set here.
-if (params.has('dark')) localStorage.setItem('darkMode', params.get('dark') === '0' ? 'false' : 'true')
+if (params.has('dark')) localStorage.setItem('darkMode', String(!['0', 'false'].includes(params.get('dark'))))
 
 const now = Date.now()
 const tags = [
