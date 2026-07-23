@@ -45,7 +45,6 @@ export function useChartTheme () {
     // can read.
     const fade = (alpha: number) => color(onSurface).alpha(alpha).rgbString()
     return {
-      textColor: onSurface,
       mutedColor: fade(0.6),
       gridColor: fade(0.12),
       primary: String(colors.primary ?? '#1976D2'),
