@@ -33,10 +33,13 @@ export function useChartTheme () {
     // is the raw theme definition, whose colors never include the on-* pairs
     // Vuetify derives for contrast. Reading `on-surface` off it always missed,
     // leaving the charts black-on-black in dark mode.
-    const colors = theme.computedThemes.value[theme.name.value]!.colors
+    const activeTheme = theme.computedThemes.value[theme.name.value]!
+    const colors = activeTheme.colors
     // Vuetify types colors as string | number | HSV… — charts need strings.
-    const onSurface = String(colors['on-surface'] ?? '#000000')
-    const surface = String(colors.surface ?? '#ffffff')
+    // The fallbacks follow `dark` so that a future miss stays legible instead
+    // of silently repainting the charts in light-theme colors.
+    const onSurface = String(colors['on-surface'] ?? (activeTheme.dark ? '#FFF' : '#000'))
+    const surface = String(colors.surface ?? (activeTheme.dark ? '#212121' : '#FFF'))
     // Alpha has to go through a parser rather than a hex suffix: the derived
     // on-* colors are short hex ("#FFF"), and "#FFF99" is not a color Chart.js
     // can read.
